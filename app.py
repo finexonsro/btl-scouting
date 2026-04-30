@@ -462,9 +462,9 @@ df = recalc_ifi(df, weights, pos_for_weights)
 
 mask = pd.Series([True]*len(df), index=df.index)
 if sel_ligen and "Liga" in df.columns:
-    mask = mask & df["Liga"].isin(sel_ligen)
+    mask = mask & (df["Liga"].isin(sel_ligen) | (df["Datenquelle"]=="nur_ifi") | df["Liga"].isna())
 if sel_markt and "Markt" in df.columns:
-    mask = mask & df["Markt"].isin(sel_markt)
+    mask = mask & (df["Markt"].isin(sel_markt) | (df["Datenquelle"]=="nur_ifi") | df["Markt"].isna())
 if "PSV-99" in df.columns:
     mask = mask & ((pd.to_numeric(df["PSV-99"],errors="coerce") >= psv_min) | (df["PSV-99"].isna()))
 if "Alter" in df.columns:

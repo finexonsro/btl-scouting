@@ -470,7 +470,7 @@ if "PSV-99" in df.columns:
 if "Alter" in df.columns:
     mask = mask & (df["Alter"]>=ar[0]) & (df["Alter"]<=ar[1])
 if "Minuten" in df.columns:
-    mask = mask & (df["Minuten"]>=mr[0]) & (df["Minuten"]<=mr[1])
+    mask = mask & ((df["Minuten"]>=mr[0]) & (df["Minuten"]<=mr[1]) | (df["Minuten"]==0))
 if sel_tiers:
     mask = mask & df["Final Tier"].isin(sel_tiers)
 if sel_src and "Datenquelle" in df.columns:
@@ -635,7 +635,7 @@ with tab1:
                                 {row.get("Verein","—")} · {row.get("Liga","—")} ·
                                 {POS_CONFIG.get(pos_row,{}).get("de",pos_row)} · {row.get('Spielertyp','—')} ·
                                 {safe_int(row.get("Alter"))} J. · {safe_int(row.get("Minuten"))} min
-                                &nbsp;<span style="color:{src_c};font-size:11px;">({src})</span>
+                                &nbsp;<span style="color:#888;font-size:11px;">{row.get("Spielertyp","—")}</span>
                             </div>
                         </div>
                         <div style="background:{t_bg_val};color:#FFF;padding:6px 14px;

@@ -595,6 +595,7 @@ with tab1:
                              on_select="rerun", selection_mode="single-row")
 
         sel_name = None
+        sel_pos = ""
         if event and event.selection and event.selection.rows:
             idx = event.selection.rows[0]
             if idx < len(df_display):
@@ -602,10 +603,29 @@ with tab1:
         if global_search and len(df_display)==1:
             sel_name = df_display.iloc[0]["Spieler"]
 
-        options = ["— auswählen —"] + df_display["Spieler"].tolist()
-        default_idx = options.index(sel_name) if sel_name in options else 0
-        sel_dd = st.selectbox("Oder Spieler auswählen:", options, index=default_idx, key="dd")
-        if sel_dd != "— auswählen —": sel_name = sel_dd
+        # Build display labels — add position if player appears multiple times
+        name_counts = df_display["Spieler"].value_counts()
+        def make_label(row):
+            if name_counts.get(row["Spieler"], 1) > 1:
+                return f"{row['Spieler']} ({row.get('Position','?')})"
+            return row["Spieler"]
+        display_labels = df_display.apply(make_label, axis=1).tolist()
+        label_to_idx = {lbl: i for i, lbl in enumerate(display_labels)}
+
+        options = ["— auswählen —"] + display_labels
+        sel_default = 0
+        if sel_name:
+            for i, lbl in enumerate(display_labels):
+                if lbl.startswith(sel_name):
+                    sel_default = i + 1
+                    break
+        sel_dd = st.selectbox("Oder Spieler auswählen:", options, index=sel_default, key="dd")
+        if sel_dd != "— auswählen —":
+            row_idx = label_to_idx.get(sel_dd, 0)
+            sel_name = df_display.iloc[row_idx]["Spieler"]
+            sel_pos  = df_display.iloc[row_idx].get("Position","")
+        else:
+            sel_pos = ""
 
         # ── DETAIL ────────────────────────────────────────────────────────────
         if sel_name:

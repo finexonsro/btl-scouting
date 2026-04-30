@@ -465,7 +465,7 @@ if sel_ligen and "Liga" in df.columns:
 if sel_markt and "Markt" in df.columns:
     mask = mask & df["Markt"].isin(sel_markt)
 if "PSV-99" in df.columns:
-    mask = mask & (pd.to_numeric(df["PSV-99"],errors="coerce").fillna(0) >= psv_min)
+    mask = mask & ((pd.to_numeric(df["PSV-99"],errors="coerce") >= psv_min) | (df["PSV-99"].isna()))
 if "Alter" in df.columns:
     mask = mask & (df["Alter"]>=ar[0]) & (df["Alter"]<=ar[1])
 if "Minuten" in df.columns:
@@ -528,12 +528,19 @@ with tab1:
             "Spieler","Verein","Liga","Position","Markt","Alter","Minuten",
             "Physical Score","Final Tier","IFI Label",
             "Speed Flag","PSV-99","Δ PSV-99",
-            "OTIP Pass","OTIP Score","BIP Score","Burst Score",
-            "Datenquelle",
+            "OTIP Pass","OTIP Score","BIP Level","BIP Score",
+            "Burst Score","Spielertyp","Datenquelle",
         ] if c in df_display.columns]
 
         disp = df_display[show_cols].copy()
-        disp = disp.rename(columns={"OTIP Score":"Pressing","BIP Score":"Lauf-Int.","Burst Score":"Explosiv."})
+        disp = disp.rename(columns={
+            "OTIP Score":  "Off-Ball Int.",
+            "BIP Score":   "Lauf-Int.",
+            "BIP Level":   "Lauf-Int. Level",
+            "Burst Score": "Explo.",
+            "OTIP Pass":   "Off-Ball Pass",
+            "Speed Flag":  "Top-Speed",
+        })
 
         tier_bg = lambda v:{
             "🔥 ELITE TARGET":f"background-color:#4A1500;color:#FFB380;font-weight:700",
@@ -562,7 +569,15 @@ with tab1:
             "nur_ifi":"color:#90CAF9",
         }.get(v,"color:#888")
 
-        fmt = {"PSV-99":"{:.2f}","Physical Score":"{:.1f}","Δ PSV-99":"{:+.2f}"}
+        fmt = {
+            "PSV-99":          "{:.2f}",
+            "Physical Score":  "{:.1f}",
+            "Δ PSV-99":        "{:+.2f}",
+            "Off-Ball Int.":   "{:.0f}",
+            "Lauf-Int.":       "{:.0f}",
+            "Explo.":          "{:.0f}",
+            "IFI Percentile":  "{:.0%}",
+        }
         fmt = {k:v for k,v in fmt.items() if k in disp.columns}
 
         styled = disp.style

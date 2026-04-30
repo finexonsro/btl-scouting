@@ -415,7 +415,7 @@ with st.sidebar:
     else:
         sel_ligen = []
 
-    psv_min = st.slider("PSV-99 Minimum (km/h)", 27.0, 33.0, 29.45, 0.1, format="%.2f")
+    psv_min = st.slider("PSV-99 Minimum (km/h)", 0.0, 33.0, 0.0, 0.5, format="%.1f")
     ar = st.slider("Alter", int(df_raw["Alter"].min()) if "Alter" in df_raw.columns else 15,
                    int(df_raw["Alter"].max()) if "Alter" in df_raw.columns else 40,
                    (15, 35) if "Alter" not in df_raw.columns else
@@ -425,6 +425,7 @@ with st.sidebar:
 
     all_tiers = ["🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO","⬜ NUR IFI"]
     sel_tiers = st.multiselect("Final Tier", all_tiers, default=all_tiers)
+    otip_gate = st.checkbox("Nur Off-Ball Pass ✅ (OTIP ≥2)", value=False)
 
     # Datenquelle filter
     if "Datenquelle" in df_raw.columns:
@@ -474,6 +475,8 @@ if sel_tiers:
     mask = mask & df["Final Tier"].isin(sel_tiers)
 if sel_src and "Datenquelle" in df.columns:
     mask = mask & df["Datenquelle"].isin(sel_src)
+if otip_gate and "OTIP Pass" in df.columns:
+    mask = mask & (df["OTIP Pass"]=="✅ YES")
 
 df_f = df[mask].sort_values(sort_col, ascending=False, na_position="last").reset_index(drop=True)
 
@@ -630,7 +633,7 @@ with tab1:
                             <div style="font-size:20px;font-weight:800;color:#FFF;">{row.get("Spieler","—")}</div>
                             <div style="font-size:13px;color:#888;margin-top:4px;">
                                 {row.get("Verein","—")} · {row.get("Liga","—")} ·
-                                {POS_CONFIG.get(pos_row,{}).get("de",pos_row)} ·
+                                {POS_CONFIG.get(pos_row,{}).get("de",pos_row)} · {row.get('Spielertyp','—')} ·
                                 {safe_int(row.get("Alter"))} J. · {safe_int(row.get("Minuten"))} min
                                 &nbsp;<span style="color:{src_c};font-size:11px;">({src})</span>
                             </div>

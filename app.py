@@ -608,7 +608,7 @@ with tab1:
                             <div style="font-size:20px;font-weight:800;color:#FFF;">{row.get("Spieler","—")}</div>
                             <div style="font-size:13px;color:#888;margin-top:4px;">
                                 {row.get("Verein","—")} · {row.get("Liga","—")} ·
-                                {POS_CONFIG.get(pos_row,{{}}).get("de",pos_row)} ·
+                                {POS_CONFIG.get(pos_row,{}).get("de",pos_row)} ·
                                 {int(row.get("Alter",0) or 0)} J. · {int(row.get("Minuten",0) or 0)} min
                                 &nbsp;<span style="color:{src_c};font-size:11px;">({src})</span>
                             </div>

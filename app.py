@@ -218,8 +218,8 @@ def physical_label(ps):
 
 def render_physical_bars(row):
     comps = [
-        ("⚡ Topgeschwindigkeit", int(row.get("Speed Score",0) or 0), 4, ORG),
-        ("🏃 Pressing-Intensität",int(row.get("OTIP Score",0) or 0),  4, "#E65100"),
+        ("⚡ Top-Speed", int(row.get("Speed Score",0) or 0), 4, ORG),
+        ("🏃 Off-Ball Intensität",int(row.get("OTIP Score",0) or 0),  4, "#E65100"),
         ("💥 Lauf-Intensität",    int(row.get("BIP Score",0) or 0),   4, "#1565C0"),
         ("🚀 Explosivität",       int(row.get("Burst Score",0) or 0), 4, "#2E7D32"),
     ]
@@ -304,8 +304,8 @@ def make_pdf(row, position):
 
     phys_rows = ""
     for nm,val,maxv,wgt,color in [
-        ("⚡ Topgeschwindigkeit",int(row.get("Speed Score",0) or 0),4,2.0,ORG),
-        ("🏃 Pressing-Intensität",int(row.get("OTIP Score",0) or 0),4,1.5,"#E65100"),
+        ("⚡ Top-Speed",int(row.get("Speed Score",0) or 0),4,2.0,ORG),
+        ("🏃 Off-Ball Intensität",int(row.get("OTIP Score",0) or 0),4,1.5,"#E65100"),
         ("💥 Lauf-Intensität",int(row.get("BIP Score",0) or 0),4,1.0,"#1565C0"),
         ("🚀 Explosivität",int(row.get("Burst Score",0) or 0),4,0.5,"#2E7D32"),
     ]:
@@ -424,7 +424,7 @@ with st.sidebar:
                    (100, int(df_raw["Minuten"].max()) if "Minuten" in df_raw.columns else 3000), step=50)
 
     all_tiers = ["🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO","⬜ NUR IFI"]
-    sel_tiers = st.multiselect("Final Tier", all_tiers, default=all_tiers[:5])
+    sel_tiers = st.multiselect("Final Tier", all_tiers, default=all_tiers)
 
     # Datenquelle filter
     if "Datenquelle" in df_raw.columns:

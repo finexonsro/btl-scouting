@@ -517,7 +517,18 @@ with tab1:
         placeholder="Name eingeben...", key="gsearch")
 
     if global_search:
-        df_display = df[df["Spieler"].str.contains(global_search, case=False, na=False)]
+        # Normalize umlauts for search
+        def normalize(s):
+            return (str(s).lower()
+                .replace("ä","ae").replace("ö","oe").replace("ü","ue")
+                .replace("ß","ss").replace("á","a").replace("é","e")
+                .replace("ó","o").replace("ú","u").replace("ń","n")
+                .replace("ć","c").replace("ź","z").replace("ś","s")
+                .replace("ł","l").replace("ę","e").replace("ą","a"))
+        search_norm = normalize(global_search)
+        df_display = df[df["Spieler"].apply(
+            lambda x: search_norm in normalize(x) if pd.notna(x) else False
+        )]
         st.markdown(f'<div style="font-size:11px;color:{ORG};font-family:DM Mono,monospace;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">🔍 {len(df_display)} Treffer · Filter ignoriert</div>', unsafe_allow_html=True)
     else:
         df_display = df_f

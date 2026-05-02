@@ -431,7 +431,12 @@ with st.sidebar:
     if "Datenquelle" in df_raw.columns:
         sel_src = st.multiselect("Datenquelle",
             ["vollständig","nur_physical","nur_ifi"],
-            default=["vollständig","nur_physical","nur_ifi"])
+            default=["vollständig","nur_physical","nur_ifi"],
+            format_func=lambda x: {
+                "vollständig": "✅ Vollständig (SC + IFI)",
+                "nur_physical": "⚡ Nur Physical (kein Twelve-Match)",
+                "nur_ifi": "🎯 Nur IFI (kein SC-Match)"
+            }.get(x, x))
     else:
         sel_src = []
 
@@ -683,15 +688,22 @@ with tab1:
 
                 st.markdown("<br>",unsafe_allow_html=True)
 
+                src_val = row.get("Datenquelle","vollständig")
                 ch1,ch2 = st.columns([1,1])
                 with ch1:
-                    st.markdown("**⚡ Physical Breakdown**")
-                    phys_html = render_physical_bars(row)
-                    st.markdown(f'<div style="background:#2E2E2E;border:1px solid #444;border-radius:8px;padding:14px 16px;">{phys_html}</div>', unsafe_allow_html=True)
+                    if src_val != "nur_ifi":
+                        st.markdown("**⚡ Physical Breakdown**")
+                        phys_html = render_physical_bars(row)
+                        st.markdown(f'<div style="background:#2E2E2E;border:1px solid #444;border-radius:8px;padding:14px 16px;">{phys_html}</div>', unsafe_allow_html=True)
+                    else:
+                        st.info("⚡ Kein Physical Score — kein SkillCorner-Match")
                 with ch2:
-                    radar = make_radar(row, pos_row)
-                    if radar: st.plotly_chart(radar, use_container_width=True, key="radar")
-                    else: st.info("Keine IFI-Daten für diese Position")
+                    if src_val != "nur_physical":
+                        radar = make_radar(row, pos_row)
+                        if radar: st.plotly_chart(radar, use_container_width=True, key="radar")
+                        else: st.info("Keine IFI-Daten für diese Position")
+                    else:
+                        st.info("🎯 Kein IFI Profil — kein Twelve-Match")
 
                 # TM Link + Downloads
                 st.markdown("<br>",unsafe_allow_html=True)

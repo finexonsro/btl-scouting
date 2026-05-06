@@ -219,11 +219,11 @@ def physical_tier(ps):
     """ps is Speed+Burst index vs BL median (100 = BL median)"""
     try:
         p = float(ps)
-        if p == 0:     return "—",              "#555"
-        if p >= 115:   return "🔥 ELITE TARGET", ORG
+        if np.isnan(p) or p <= 0: return "—",              "#555"
+        if p >= 110:   return "🔥 ELITE TARGET", ORG
         elif p >= 100: return "🟢 TOP TARGET",   "#1B5E20"
-        elif p >= 85:  return "🔵 INTERESTING",  "#0D47A1"
-        elif p >= 70:  return "🟡 WATCHLIST",    ORG2
+        elif p >= 88:  return "🔵 INTERESTING",  "#0D47A1"
+        elif p >= 75:  return "🟡 WATCHLIST",    ORG2
         else:          return "🔴 RISIKO",       "#4A0D0D"
     except:
         return "—", "#555"
@@ -239,18 +239,22 @@ def bl_level_color(label):
 
 def calc_final_tier(row, ifi_lbl):
     ps = row.get("physical score", np.nan)
-    has_physical = pd.notna(ps)
-    has_ifi      = pd.notna(row.get("pct_score", np.nan))
+    try:
+        ps_val = float(ps)
+        has_physical = not np.isnan(ps_val) and ps_val > 0
+    except:
+        has_physical = False
+    has_ifi = pd.notna(row.get("pct_score", np.nan))
 
     if not has_physical and not has_ifi:
         return "—"
-
     if not has_physical:
         return "⬜ NUR IFI"
 
     tier, _ = physical_tier(ps)
     order = ["🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
-
+    if tier not in order:
+        return "⬜ NUR IFI" if has_ifi else "—"
     if ifi_lbl in ["BELOW","WEAK"] and tier in order:
         return order[max(order.index(tier), 3)]
     return tier
@@ -314,7 +318,7 @@ def render_physical_bars(row):
                 "⚫ Darunter": "#888"}.get(lbl, "#888")
 
     bm_html = ""
-    if pd.notna(ps_idx) and float(ps_idx) > 0:
+    if pd.notna(ps_idx) and not (isinstance(ps_idx, float) and np.isnan(ps_idx)) and float(ps_idx) > 0:
         d = float(ps_idx) - 100
         sign = "pos" if d >= 0 else "neg"
         lc = label_color(bl_lbl)

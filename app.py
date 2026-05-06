@@ -723,7 +723,8 @@ with tab1:
 
         fmt = {k: v for k, v in {
             "PSV-99":       "{:.2f}",
-            "Physical Score": "{:.0f}",
+            "Physical Score (vs BL)": "{:.1f}",
+            "Physical Score (vs 3.Liga)": "{:.1f}",
             "IFI Pct":      "{:.0f}",
             "Speed Pct":    "{:.0f}",
             "OTIP Pct":     "{:.0f}",
@@ -996,6 +997,17 @@ Peer-Perzentil pro Position + Liga — 100 = bester Spieler in seiner Liga und P
 **Tiers (vs BL-Median):** ≥120 🔥 ELITE · ≥105 🟢 TOP · ≥90 🔵 INT · ≥75 🟡 WATCHLIST · <75 🔴 RISIKO
 
 **BL/3.Liga Labels:** ≥115 🔥 Weit über · ≥100 ✅ BL-Niveau · ≥85 🟡 Nah dran · <85 ⚫ Darunter
+
+**Positionsspezifische Gewichtungen:**
+
+| Komponente | Winger | Striker | MF | Fullback | IV |
+|---|---|---|---|---|---|
+| ⚡ Speed | ×2.5 | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
+| 🏃 OTIP | ×1.0 | ×1.0 | ×1.0 | ×3.0 | ×3.0 |
+| 💥 BIP  | ×1.5 | ×1.0 | ×1.0 | ×1.5 | ×1.0 |
+| 🚀 Burst | ×2.0 | ×1.0 | ×1.0 | ×1.0 | ×2.5 |
+
+**Methodik:** Sprint Distance + Explosive Accelerations (nach belgischer Pro League Scouting-Methode)
 
 **Benchmarks:** BL-Median + 3.Liga-Median pro Position (Δ = Differenz zum Median)
         """)

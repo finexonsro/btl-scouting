@@ -172,6 +172,17 @@ if not check_password():
 def load_data():
     df = pd.read_csv("data/btl_scouting_app_data.csv")
     df.columns = [c.lower().strip() for c in df.columns]
+    if "age" in df.columns:
+        df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")
+    df["markt"] = "DACH"
+    has_sc  = df["sc_psv-99"].notna() if "sc_psv-99" in df.columns else pd.Series(False, index=df.index)
+    has_ifi = df["pct_score"].notna()  if "pct_score"  in df.columns else pd.Series(False, index=df.index)
+    df["datenquelle"] = "unbekannt"
+    df.loc[ has_sc &  has_ifi, "datenquelle"] = "vollständig"
+    df.loc[ has_sc & ~has_ifi, "datenquelle"] = "nur_physical"
+    df.loc[~has_sc &  has_ifi, "datenquelle"] = "nur_ifi"
+    if "minutes" not in df.columns and "sc_minutes" in df.columns:
+        df["minutes"] = df["sc_minutes"]
     return df
 
 df_raw = load_data()
@@ -471,12 +482,21 @@ with st.sidebar:
 
     st.markdown('<div class="sec" style="margin-top:10px;">Filter</div>', unsafe_allow_html=True)
 
-    # Liga-Tier filter
-    if "tier" in df_raw.columns:
-        tiers_avail = sorted(df_raw["tier"].dropna().unique().tolist())
-        sel_tiers_liga = st.multiselect("Liga-Tier", tiers_avail, default=tiers_avail)
+    # Markt filter
+    if "markt" in df_raw.columns:
+        maerkte = sorted(df_raw["markt"].dropna().unique().tolist())
+        sel_markt = st.multiselect("Markt", maerkte, default=maerkte)
     else:
-        sel_tiers_liga = []
+        sel_markt = []
+    # Datenquelle filter
+    sel_src = st.multiselect("Datenquelle",
+        ["vollständig","nur_physical","nur_ifi"],
+        default=["vollständig","nur_physical","nur_ifi"],
+        format_func=lambda x: {
+            "vollständig":  "✅ Vollständig (SC + IFI)",
+            "nur_physical": "⚡ Nur Physical (kein IFI)",
+            "nur_ifi":      "🎯 Nur IFI (kein SC-Match)"
+        }.get(x, x))
 
     if "liga" in df_raw.columns:
         ligen = sorted(df_raw["liga"].dropna().unique().tolist())
@@ -540,8 +560,10 @@ df = recalc(df, weights, pos_for_weights)
 mask = pd.Series([True]*len(df), index=df.index)
 if sel_ligen and "liga" in df.columns:
     mask = mask & df["liga"].isin(sel_ligen)
-if sel_tiers_liga and "tier" in df.columns:
-    mask = mask & df["tier"].isin(sel_tiers_liga)
+if sel_markt and "markt" in df.columns:
+    mask = mask & df["markt"].isin(sel_markt)
+if sel_src and "datenquelle" in df.columns:
+    mask = mask & df["datenquelle"].isin(sel_src)
 if "sc_psv-99" in df.columns:
     mask = mask & ((pd.to_numeric(df["sc_psv-99"], errors="coerce") >= psv_min) | df["sc_psv-99"].isna())
 if age_col and age_col in df.columns:
@@ -611,7 +633,7 @@ with tab1:
         st.info("Keine Spieler mit diesen Filtern.")
     else:
         show_cols = [c for c in [
-            "name","team","liga","position","spielertyp","tier","age",
+            "name","team","liga","position","spielertyp","markt","age",
             "physical score","final_tier","ifi_label",
             "speed_flag","sc_psv-99",
             "pct_score","pct_speed","pct_otip","pct_bip","pct_burst",
@@ -625,7 +647,7 @@ with tab1:
             "liga":           "Liga",
             "position":       "Position",
             "spielertyp":     "Spielertyp",
-            "tier":           "Liga-Tier",
+            "markt":          "Markt",
             "age":            "Alter",
             "physical score": "Physical Score",
             "final_tier":     "Final Tier",
@@ -828,13 +850,13 @@ with tab2:
             for verein in vereine:
                 df_v = df_team[df_team["team"]==verein].sort_values("physical score", ascending=False, na_position="last")
                 liga  = df_v["liga"].iloc[0] if "liga" in df_v.columns else "—"
-                tier  = df_v["tier"].iloc[0] if "tier" in df_v.columns else "—"
+                markt = df_v["markt"].iloc[0] if "markt" in df_v.columns else "DACH"
 
                 st.markdown(f"""
                 <div style="background:#2E2E2E;border:1px solid #444;border-left:4px solid {ORG};
                             border-radius:8px;padding:12px 16px;margin-bottom:12px;">
                     <span style="font-size:16px;font-weight:700;color:#FFF;">{verein}</span>
-                    <span style="font-size:12px;color:#888;margin-left:12px;">{liga} · {tier} · {len(df_v)} Spieler</span>
+                    <span style="font-size:12px;color:#888;margin-left:12px;">{liga} · {markt} · {len(df_v)} Spieler</span>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -888,9 +910,9 @@ with tab3:
     with c1: x  = st.selectbox("X-Achse", num_cols, index=0, format_func=lambda v: col_labels.get(v,v))
     with c2: y  = st.selectbox("Y-Achse", num_cols, index=1, format_func=lambda v: col_labels.get(v,v))
     with c3: sz = st.selectbox("Größe", ["—"]+num_cols, index=0, format_func=lambda v: col_labels.get(v,v))
-    with c4: cb = st.selectbox("Farbe", ["final_tier","speed_flag","ifi_label","position","tier","liga"], index=0,
+    with c4: cb = st.selectbox("Farbe", ["final_tier","speed_flag","ifi_label","position","markt","liga"], index=0,
                                 format_func=lambda v: {"final_tier":"Final Tier","speed_flag":"Speed Flag",
-                                    "ifi_label":"IFI Label","position":"Position","tier":"Liga-Tier","liga":"Liga"}.get(v,v))
+                                    "ifi_label":"IFI Label","position":"Position","markt":"Markt","liga":"Liga"}.get(v,v))
 
     if not df_f.empty:
         try:
@@ -942,7 +964,7 @@ Peer-Perzentil pro Position + Liga — 100 = bester Spieler in seiner Liga und P
 **Benchmarks:** BL-Median + 3.Liga-Median pro Position (Δ = Differenz zum Median)
         """)
     with cb_:
-        st.markdown("### IFI System")
+        st.markdown("### IFI System (IFI-Attribute)")
         st.markdown("""
 Peer-Perzentil der Twelve-Attribute pro Position + Liga.
 
@@ -961,6 +983,8 @@ Peer-Perzentil der Twelve-Attribute pro Position + Liga.
 - 🟠 MEDIUM ≥ 29 km/h
 
 **Rollenprofile:** Clustering auf allen Ligen (≥500 min) — BL als Qualitätsreferenz
+
+**IFI-Attribute** werden über Twelve (Football Intelligence Platform) gemessen.
         """)
 
     st.markdown("---")

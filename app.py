@@ -216,14 +216,14 @@ def ifi_label(pct):
         return "—"
 
 def physical_tier(ps):
-    """ps is index vs BL median (100 = BL median, >100 = above BL)"""
+    """ps is Speed+Burst index vs BL median (100 = BL median)"""
     try:
         p = float(ps)
-        if p == 0:    return "—",               "#555"
-        if p >= 120:  return "🔥 ELITE TARGET",  ORG
-        elif p >= 105: return "🟢 TOP TARGET",   "#1B5E20"
-        elif p >= 90:  return "🔵 INTERESTING",  "#0D47A1"
-        elif p >= 75:  return "🟡 WATCHLIST",    ORG2
+        if p == 0:     return "—",              "#555"
+        if p >= 115:   return "🔥 ELITE TARGET", ORG
+        elif p >= 100: return "🟢 TOP TARGET",   "#1B5E20"
+        elif p >= 85:  return "🔵 INTERESTING",  "#0D47A1"
+        elif p >= 70:  return "🟡 WATCHLIST",    ORG2
         else:          return "🔴 RISIKO",       "#4A0D0D"
     except:
         return "—", "#555"
@@ -310,19 +310,20 @@ def render_physical_bars(row):
 
     def label_color(lbl):
         return {"🔥 Weit über": "#FFB380", "✅ BL-Niveau": "#81C784",
-                "🟡 Nah dran": "#FFCC80", "⚫ Darunter": "#888"}.get(lbl, "#888")
+                "✅ 3L-Niveau": "#81C784", "🟡 Nah dran": "#FFCC80",
+                "⚫ Darunter": "#888"}.get(lbl, "#888")
 
     bm_html = ""
     if pd.notna(ps_idx) and float(ps_idx) > 0:
         d = float(ps_idx) - 100
         sign = "pos" if d >= 0 else "neg"
         lc = label_color(bl_lbl)
-        bm_html += f'<div class="bm-row"><span class="bm-label">vs BL:</span><span class="bm-val">{float(ps_idx):.1f}</span><span class="bm-delta-{sign}">{d:+.1f}</span><span style="margin-left:10px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'
+        bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed+Burst vs BL:</span><span class="bm-val">{float(ps_idx):.1f}</span><span class="bm-delta-{sign}">{d:+.1f}</span><span style="margin-left:10px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'
     if pd.notna(ps_idx_3l) and float(ps_idx_3l) > 0:
         d = float(ps_idx_3l) - 100
         sign = "pos" if d >= 0 else "neg"
         lc = label_color(l3_lbl)
-        bm_html += f'<div class="bm-row"><span class="bm-label">vs 3.Liga:</span><span class="bm-val">{float(ps_idx_3l):.1f}</span><span class="bm-delta-{sign}">{d:+.1f}</span><span style="margin-left:10px;font-size:12px;color:{lc};font-weight:600;">{l3_lbl}</span></div>'
+        bm_html += f'<div class="bm-row"><span class="bm-label">🏃 Lauf vs 3.Liga:</span><span class="bm-val">{float(ps_idx_3l):.1f}</span><span class="bm-delta-{sign}">{d:+.1f}</span><span style="margin-left:10px;font-size:12px;color:{lc};font-weight:600;">{l3_lbl}</span></div>'
 
     html += f"""
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #3A3A3A;">
@@ -473,7 +474,7 @@ table{{width:100%;border-collapse:collapse;}}
     <div class="badge">{tier_l}</div>
 </div>
 <div class="cards">
-    <div class="card"><div class="val">{ps:.1f}</div><div class="lbl">Physical Score (vs BL)</div></div>
+    <div class="card"><div class="val">{ps:.1f}</div><div class="lbl">⚡ Speed+Burst vs BL</div></div>
     <div class="card"><div class="val" style="color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>
     <div class="card"><div class="val">{ifi_pct:.0f}%</div><div class="lbl">IFI Perzentil</div></div>
     <div class="card"><div class="val" style="color:{ic};">{em}</div><div class="lbl">IFI Label</div></div>
@@ -737,6 +738,7 @@ with tab1:
         bl_level_bg = lambda v: {
             "🔥 Weit über":  "background-color:#4A1500;color:#FFB380;font-weight:700",
             "✅ BL-Niveau":  "background-color:#0A1F0A;color:#81C784;font-weight:700",
+            "✅ 3L-Niveau":  "background-color:#0A1F0A;color:#81C784;font-weight:700",
             "🟡 Nah dran":   "background-color:#2A1A00;color:#FFCC80;font-weight:700",
             "⚫ Darunter":   "color:#555",
         }.get(v, "")
@@ -821,7 +823,9 @@ with tab1:
                 d1, d2, d3, d4 = st.columns(4)
                 with d1:
                     ps_disp = f"{ps:.1f}" if ps > 0 else "—"
-                    st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">Physical Score (vs BL)</div></div>', unsafe_allow_html=True)
+                    ps_3l   = float(row.get("physical score 3l", 0) or 0)
+                    ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
+                    st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">⚡ Speed+Burst vs BL</div></div>', unsafe_allow_html=True)
                 with d2:
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:16px;color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
                 with d3:
@@ -994,20 +998,26 @@ Peer-Perzentil pro Position + Liga — 100 = bester Spieler in seiner Liga und P
 | 💥 BIP (Lauf-Int.) | ×0.5 | ×1.0 | ×1.5 | ×1.5 | ×1.5 |
 | 🚀 Burst (Explo.)  | ×2.0 | ×1.0 | ×2.0 | ×0.5 | ×1.5 |
 
-**Tiers (vs BL-Median):** ≥120 🔥 ELITE · ≥105 🟢 TOP · ≥90 🔵 INT · ≥75 🟡 WATCHLIST · <75 🔴 RISIKO
+**Zwei Scores:**
 
-**BL/3.Liga Labels:** ≥115 🔥 Weit über · ≥100 ✅ BL-Niveau · ≥85 🟡 Nah dran · <85 ⚫ Darunter
+**⚡ Speed+Burst vs BL** — athletische BL-Tauglichkeit
+- Tiers: ≥115 🔥 ELITE · ≥100 🟢 TOP · ≥85 🔵 INT · ≥70 🟡 WATCHLIST · <70 🔴 RISIKO
+- Labels: ≥115 🔥 Weit über · ≥100 ✅ BL-Niveau · ≥85 🟡 Nah dran · <85 ⚫ Darunter
 
-**Positionsspezifische Gewichtungen:**
-
-| Komponente | Winger | Striker | MF | Fullback | IV |
+| Gewichtung | Winger | Striker | MF | Fullback | IV |
 |---|---|---|---|---|---|
 | ⚡ Speed | ×2.5 | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
-| 🏃 OTIP | ×1.0 | ×1.0 | ×1.0 | ×3.0 | ×3.0 |
-| 💥 BIP  | ×1.5 | ×1.0 | ×1.0 | ×1.5 | ×1.0 |
 | 🚀 Burst | ×2.0 | ×1.0 | ×1.0 | ×1.0 | ×2.5 |
 
-**Methodik:** Sprint Distance + Explosive Accelerations (nach belgischer Pro League Scouting-Methode)
+**🏃 Lauf-Index vs 3.Liga** — physische Anschlussfähigkeit
+- Labels: ≥115 🔥 Weit über · ≥100 ✅ 3L-Niveau · ≥85 🟡 Nah dran · <85 ⚫ Darunter
+
+| Gewichtung | Winger | Striker | MF | Fullback | IV |
+|---|---|---|---|---|---|
+| 🏃 OTIP | ×1.0 | ×1.0 | ×2.0 | ×3.0 | ×3.0 |
+| 💥 BIP  | ×1.5 | ×1.0 | ×1.0 | ×1.5 | ×1.0 |
+
+**Methodik:** Sprint Distance + Explosive Accelerations to Sprint (belgische Pro League Scouting-Methode via SkillCorner)
 
 **Benchmarks:** BL-Median + 3.Liga-Median pro Position (Δ = Differenz zum Median)
         """)

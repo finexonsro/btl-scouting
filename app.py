@@ -216,14 +216,15 @@ def ifi_label(pct):
         return "—"
 
 def physical_tier(ps):
-    """ps is peer-percentile 0-100"""
+    """ps is index vs BL median (100 = BL median, >100 = above BL)"""
     try:
         p = float(ps)
-        if p >= 80:   return "🔥 ELITE TARGET",  ORG
-        elif p >= 65: return "🟢 TOP TARGET",     "#1B5E20"
-        elif p >= 50: return "🔵 INTERESTING",    "#0D47A1"
-        elif p >= 35: return "🟡 WATCHLIST",      ORG2
-        else:         return "🔴 RISIKO",         "#4A0D0D"
+        if p == 0:    return "—",               "#555"
+        if p >= 120:  return "🔥 ELITE TARGET",  ORG
+        elif p >= 105: return "🟢 TOP TARGET",   "#1B5E20"
+        elif p >= 90:  return "🔵 INTERESTING",  "#0D47A1"
+        elif p >= 75:  return "🟡 WATCHLIST",    ORG2
+        else:          return "🔴 RISIKO",       "#4A0D0D"
     except:
         return "—", "#555"
 
@@ -304,20 +305,24 @@ def render_physical_bars(row):
     # BL Level labels
     bl_lbl = str(row.get("bl level", "—"))
     l3_lbl = str(row.get("3l level", "—"))
-    ps_idx    = row.get("physical score",    np.nan)  # Index vs BL
-    ps_idx_3l = row.get("physical score 3l", np.nan)  # Index vs 3.Liga
-    d_bl_idx  = (float(ps_idx)    - 100) if pd.notna(ps_idx)    else np.nan
-    d_3l_idx  = (float(ps_idx_3l) - 100) if pd.notna(ps_idx_3l) else np.nan
+    ps_idx    = row.get("physical score",    np.nan)
+    ps_idx_3l = row.get("physical score 3l", np.nan)
+
+    def label_color(lbl):
+        return {"🔥 Weit über": "#FFB380", "✅ BL-Niveau": "#81C784",
+                "🟡 Nah dran": "#FFCC80", "⚫ Darunter": "#888"}.get(lbl, "#888")
 
     bm_html = ""
-    if pd.notna(ps_idx):
-        dc = "#81C784" if d_bl_idx >= 0 else "#EF9A9A"
-        sign = "pos" if d_bl_idx >= 0 else "neg"
-        bm_html += f'<div class="bm-row"><span class="bm-label">vs BL:</span><span class="bm-val">{ps_idx:.1f}</span><span class="bm-delta-{sign}">{d_bl_idx:+.1f}</span><span style="margin-left:8px;font-size:11px;">{bl_lbl}</span></div>'
-    if pd.notna(ps_idx_3l):
-        dc = "#81C784" if d_3l_idx >= 0 else "#EF9A9A"
-        sign = "pos" if d_3l_idx >= 0 else "neg"
-        bm_html += f'<div class="bm-row"><span class="bm-label">vs 3.Liga:</span><span class="bm-val">{ps_idx_3l:.1f}</span><span class="bm-delta-{sign}">{d_3l_idx:+.1f}</span><span style="margin-left:8px;font-size:11px;">{l3_lbl}</span></div>'
+    if pd.notna(ps_idx) and float(ps_idx) > 0:
+        d = float(ps_idx) - 100
+        sign = "pos" if d >= 0 else "neg"
+        lc = label_color(bl_lbl)
+        bm_html += f'<div class="bm-row"><span class="bm-label">vs BL:</span><span class="bm-val">{float(ps_idx):.1f}</span><span class="bm-delta-{sign}">{d:+.1f}</span><span style="margin-left:10px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'
+    if pd.notna(ps_idx_3l) and float(ps_idx_3l) > 0:
+        d = float(ps_idx_3l) - 100
+        sign = "pos" if d >= 0 else "neg"
+        lc = label_color(l3_lbl)
+        bm_html += f'<div class="bm-row"><span class="bm-label">vs 3.Liga:</span><span class="bm-val">{float(ps_idx_3l):.1f}</span><span class="bm-delta-{sign}">{d:+.1f}</span><span style="margin-left:10px;font-size:12px;color:{lc};font-weight:600;">{l3_lbl}</span></div>'
 
     html += f"""
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #3A3A3A;">
@@ -468,7 +473,7 @@ table{{width:100%;border-collapse:collapse;}}
     <div class="badge">{tier_l}</div>
 </div>
 <div class="cards">
-    <div class="card"><div class="val">{ps:.0f}</div><div class="lbl">Physical Score /100</div></div>
+    <div class="card"><div class="val">{ps:.1f}</div><div class="lbl">Physical Score (vs BL)</div></div>
     <div class="card"><div class="val" style="color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>
     <div class="card"><div class="val">{ifi_pct:.0f}%</div><div class="lbl">IFI Perzentil</div></div>
     <div class="card"><div class="val" style="color:{ic};">{em}</div><div class="lbl">IFI Label</div></div>
@@ -490,7 +495,7 @@ table{{width:100%;border-collapse:collapse;}}
 with st.sidebar:
     st.markdown(f"""
     <div style="text-align:center;padding:20px 0 14px;">
-        <img src="data:image/png;base64,{LOGO_B64_VAR}" style="width:90px;filter:drop-shadow(0 0 14px {ORG}88);">
+        <img src="data:image/jpeg;base64,{LOGO_WHITE_B64}" style="width:80px;border-radius:4px;">
         <div style="font-size:14px;font-weight:800;color:#FFF;margin-top:10px;letter-spacing:0.06em;">BETWEEN THE LINES</div>
         <div style="font-size:10px;color:#888;letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;">Scouting Intelligence</div>
     </div>
@@ -603,7 +608,7 @@ df_f = df[mask].sort_values(sort_col, ascending=False, na_position="last").reset
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 cL, cT = st.columns([1,12])
 with cL:
-    st.markdown(f'<div style="padding-top:6px;"><img src="data:image/png;base64,{LOGO_B64_VAR}" style="width:48px;filter:drop-shadow(0 2px 6px {ORG}66);"></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="padding-top:6px;"><img src="data:image/jpeg;base64,{LOGO_WHITE_B64}" style="width:44px;border-radius:3px;"></div>', unsafe_allow_html=True)
 with cT:
     pos_label = f" · {POS_CONFIG[sel_pos]['de']}" if sel_pos != "Alle" else ""
     st.markdown(f'<div style="padding-top:8px;"><span style="font-size:22px;font-weight:800;color:#FFF;">Scouting Dashboard</span><span style="font-size:13px;color:#777;margin-left:12px;">Between The Lines{pos_label} &nbsp;·&nbsp;<span style="color:{ORG};font-weight:700;">{len(df_f)} Spieler</span> nach Filter</span></div>', unsafe_allow_html=True)
@@ -615,7 +620,7 @@ kpi_cols = st.columns(6)
 elite_top = len(df_f[df_f.get("final_tier", pd.Series(dtype=str)).isin(["🔥 ELITE TARGET","🟢 TOP TARGET"])]) if "final_tier" in df_f.columns else 0
 ifi_elite = len(df_f[df_f.get("ifi_label", pd.Series(dtype=str)) == "ELITE"]) if "ifi_label" in df_f.columns else 0
 max_psv   = f'{df_f["sc_psv-99"].max():.2f}' if "sc_psv-99" in df_f.columns and len(df_f) > 0 else "—"
-max_ps    = f'{df_f["physical score"].max():.0f}' if "physical score" in df_f.columns and len(df_f) > 0 else "—"
+max_ps    = f'{df_f["physical score"].max():.1f}' if "physical score" in df_f.columns and len(df_f) > 0 else "—"
 med_age   = f'{int(df_f["age"].median())}' if "age" in df_f.columns and len(df_f) > 0 else "—"
 kpis = [
     (len(df_f),  "Spieler gesamt"),
@@ -814,7 +819,8 @@ with tab1:
 
                 d1, d2, d3, d4 = st.columns(4)
                 with d1:
-                    st.markdown(f'<div class="jcard"><div class="val">{ps:.0f}<span style="font-size:13px;color:#666;">/100</span></div><div class="lbl">Physical Score</div></div>', unsafe_allow_html=True)
+                    ps_disp = f"{ps:.1f}" if ps > 0 else "—"
+                    st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">Physical Score (vs BL)</div></div>', unsafe_allow_html=True)
                 with d2:
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:16px;color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
                 with d3:
@@ -987,7 +993,9 @@ Peer-Perzentil pro Position + Liga — 100 = bester Spieler in seiner Liga und P
 | 💥 BIP (Lauf-Int.) | ×0.5 | ×1.0 | ×1.5 | ×1.5 | ×1.5 |
 | 🚀 Burst (Explo.)  | ×2.0 | ×1.0 | ×2.0 | ×0.5 | ×1.5 |
 
-**Tiers:** ≥80 🔥 ELITE · ≥65 🟢 TOP · ≥50 🔵 INT · ≥35 🟡 WATCHLIST · <35 🔴 RISIKO
+**Tiers (vs BL-Median):** ≥120 🔥 ELITE · ≥105 🟢 TOP · ≥90 🔵 INT · ≥75 🟡 WATCHLIST · <75 🔴 RISIKO
+
+**BL/3.Liga Labels:** ≥115 🔥 Weit über · ≥100 ✅ BL-Niveau · ≥85 🟡 Nah dran · <85 ⚫ Darunter
 
 **Benchmarks:** BL-Median + 3.Liga-Median pro Position (Δ = Differenz zum Median)
         """)

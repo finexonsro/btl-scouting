@@ -184,7 +184,7 @@ if not check_password():
 def load_data():
     df = pd.read_csv("data/btl_scouting_app_data.csv")
     df.columns = [c.lower().strip() for c in df.columns]
-    # Note: df.columns already lowercased above
+    # All columns are now lowercase - Pct_Score → pct_score, SC_PSV-99 → sc_psv-99
     if "age" in df.columns:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")
     df["markt"] = "DACH"
@@ -397,9 +397,16 @@ def make_radar(row, position):
     vals, labels = [], []
     for attr, attr_de in zip(attrs, attrs_de):
         col = f"pct_{attr}"
+        # Try exact match first, then case-insensitive
         if col in row.index and pd.notna(row[col]):
             vals.append(float(row[col]))
             labels.append(attr_de)
+        else:
+            # Try finding column case-insensitively
+            matches = [c for c in row.index if c.lower() == col.lower()]
+            if matches and pd.notna(row[matches[0]]):
+                vals.append(float(row[matches[0]]))
+                labels.append(attr_de)
     if len(vals) < 3:
         return None
 
@@ -490,6 +497,10 @@ def make_html_report(row, position):
     ifi_rows = ""
     for attr, attr_de in zip(attrs, attrs_de):
         col = f"pct_{attr}"
+        # Try exact match first, then case-insensitive
+        if col not in row.index:
+            matches = [c for c in row.index if c.lower() == col.lower()]
+            col = matches[0] if matches else col
         if col not in row.index or pd.isna(row.get(col)):
             continue
         pct   = float(row[col])
@@ -886,10 +897,15 @@ with tab1:
 
         # ── DETAIL ────────────────────────────────────────────────────────────
         if sel_name and sel_pos_row:
-            # Nutze den angeklickten Eintrag direkt (richtige Position)
+            # Nutze vollständigen Eintrag aus df (alle Spalten inkl. pct_attrs)
             if sel_row_idx is not None and sel_row_idx < len(df_display):
-                row_m = df_display.iloc[[sel_row_idx]]
+                # Finde den entsprechenden Eintrag in df mit allen Spalten
+                disp_row = df_display.iloc[sel_row_idx]
+                mask_full = (df["name"] == disp_row.get("name","")) &                             (df["position"] == disp_row.get("position",""))
+                row_m = df[mask_full]
             else:
+                row_m = df[(df["name"] == sel_name) & (df["position"] == sel_pos_row)]
+            if row_m.empty:
                 row_m = df[df["name"] == sel_name]
             if not row_m.empty:
                 row      = row_m.iloc[0]

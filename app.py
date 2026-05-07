@@ -85,11 +85,19 @@ IFI_LABEL_STYLE = {
 }
 
 TIER_COLORS = {
-    "🔥 ELITE TARGET": "#E8560A",
-    "🟢 TOP TARGET":   "#1B5E20",
-    "🔵 INTERESTING":  "#0D47A1",
-    "🟡 WATCHLIST":    "#F0A500",
-    "🔴 RISIKO":       "#4A0D0D",
+    "🔥 Komplettpaket":     "#E8560A",
+    "⚡ Physisches Talent": "#B84000",
+    "🏃 Athlet":            "#7B3F00",
+    "🧠 Taktisch stark":    "#1B5E20",
+    "👀 Interessant":       "#0D47A1",
+    "⚠️ Beobachten":        "#F0A500",
+    "💡 Taktisch interessant": "#1A237E",
+    "🔥 ELITE TARGET":      "#E8560A",
+    "🟢 TOP TARGET":        "#1B5E20",
+    "🔵 INTERESTING":       "#0D47A1",
+    "🟡 WATCHLIST":         "#F0A500",
+    "🔴 RISIKO":            "#4A0D0D",
+    "⬜ NUR IFI":           "#333333",
 }
 
 SPEED_FLAGS = {
@@ -255,8 +263,21 @@ def calc_final_tier(row, ifi_lbl):
     order = ["🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
     if tier not in order:
         return "⬜ NUR IFI" if has_ifi else "—"
-    if ifi_lbl in ["BELOW","WEAK"] and tier in order:
-        return order[max(order.index(tier), 3)]
+
+    # Kombiniertes Label aus Physical + IFI
+    phys_elite = tier in ["🔥 ELITE TARGET","🟢 TOP TARGET"]
+    phys_mid   = tier in ["🔵 INTERESTING"]
+    ifi_elite  = ifi_lbl in ["ELITE","STRONG"]
+    ifi_mid    = ifi_lbl in ["AVERAGE"]
+    ifi_weak   = ifi_lbl in ["BELOW","WEAK"]
+
+    if phys_elite and ifi_elite:  return "🔥 Komplettpaket"
+    if phys_elite and ifi_mid:    return "⚡ Physisches Talent"
+    if phys_elite and ifi_weak:   return "🏃 Athlet"
+    if phys_mid   and ifi_elite:  return "🧠 Taktisch stark"
+    if phys_mid   and ifi_mid:    return "👀 Interessant"
+    if phys_mid   and ifi_weak:   return "⚠️ Beobachten"
+    if ifi_elite:                 return "💡 Taktisch interessant"
     return tier
 
 def recalc(df, weights, position):
@@ -317,10 +338,20 @@ def render_physical_bars(row):
                 "✅ 3L-Niveau": "#81C784", "🟡 Nah dran": "#FFCC80",
                 "⚫ Darunter": "#888"}.get(lbl, "#888")
 
+    # BL Median Referenz pro Position (fixe Werte aus der Analyse)
+    BL_MEDIANS = {
+        "Winger": 58.7, "Striker": 56.5, "Midfielder": 58.7,
+        "Fullback": 64.4, "Central Defender": 54.0
+    }
+    pos_row    = row.get("position", "")
+    bl_ref     = BL_MEDIANS.get(pos_row, 60.0)
+
     bm_html = ""
     if pd.notna(ps_idx) and not (isinstance(ps_idx, float) and np.isnan(ps_idx)) and float(ps_idx) > 0:
-        lc = label_color(bl_lbl)
-        bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed+Burst:</span><span class="bm-val">{float(ps_idx):.1f}</span><span style="margin-left:10px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'
+        lc   = label_color(bl_lbl)
+        diff = float(ps_idx) - bl_ref
+        sign = "pos" if diff >= 0 else "neg"
+        bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed+Burst:</span><span class="bm-val">{float(ps_idx):.1f}</span><span class="bm-delta-{sign}">{diff:+.1f} vs BL-Median ({bl_ref:.0f})</span><span style="margin-left:8px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'
     if pd.notna(ps_idx_3l) and not (isinstance(ps_idx_3l, float) and np.isnan(float(ps_idx_3l) if pd.notna(ps_idx_3l) else float("nan"))) and float(ps_idx_3l) > 0:
         bm_html += f'<div class="bm-row"><span class="bm-label">🏃 Laufintensität:</span><span class="bm-val">{float(ps_idx_3l):.1f}</span><span style="margin-left:10px;font-size:11px;color:#888;">DACH-Perzentil</span></div>'
 
@@ -473,7 +504,7 @@ table{{width:100%;border-collapse:collapse;}}
     <div class="badge">{tier_l}</div>
 </div>
 <div class="cards">
-    <div class="card"><div class="val">{ps:.1f}</div><div class="lbl">⚡ Speed+Burst vs BL</div></div>
+    <div class="card"><div class="val">{ps:.1f}</div><div class="lbl">⚡ Speed+Burst (DACH%)</div></div>
     <div class="card"><div class="val" style="color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>
     <div class="card"><div class="val">{ifi_pct:.0f}%</div><div class="lbl">IFI Perzentil</div></div>
     <div class="card"><div class="val" style="color:{ic};">{em}</div><div class="lbl">IFI Label</div></div>
@@ -566,8 +597,8 @@ with st.sidebar:
     sort_options = [c for c in sort_options if c in df_raw.columns]
     sort_col = st.selectbox("Sortieren nach", sort_options,
         format_func=lambda x: {
-            "physical score":    "Physical Score (vs BL)",
-            "physical score 3l": "Physical Score (vs 3.Liga)",
+            "physical score":    "Speed+Burst (DACH%)",
+            "physical score 3l": "Laufintensität (DACH%)",
             "bl level":       "BL Level",
             "sc_psv-99": "PSV-99",
             "pct_score": "IFI Perzentil",
@@ -647,11 +678,20 @@ with tab1:
         return (str(s).lower()
             .replace("ä","ae").replace("ö","oe").replace("ü","ue")
             .replace("ß","ss").replace("á","a").replace("é","e")
-            .replace("ó","o").replace("ú","u").replace("ń","n"))
+            .replace("ó","o").replace("ú","u").replace("ń","n")
+            .replace("š","s").replace("č","c").replace("ž","z")
+            .replace("ć","c").replace("đ","d").replace("ì","i")
+            .replace("ï","i").replace("ê","e").replace("â","a")
+            .replace("î","i").replace("ô","o").replace("û","u"))
 
     if global_search:
-        sn = normalize(global_search)
-        df_display = df[df["name"].apply(lambda x: sn in normalize(x) if pd.notna(x) else False)]
+        # Split search terms — alle müssen matchen
+        terms = [normalize(t) for t in global_search.strip().split() if t]
+        def matches(name):
+            if not pd.notna(name): return False
+            n = normalize(name)
+            return all(t in n for t in terms)
+        df_display = df[df["name"].apply(matches)]
         st.markdown(f'<div style="font-size:11px;color:{ORG};font-family:DM Mono;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">🔍 {len(df_display)} Treffer · Filter ignoriert</div>', unsafe_allow_html=True)
     else:
         df_display = df_f
@@ -677,8 +717,8 @@ with tab1:
             "spielertyp":     "Spielertyp",
             "markt":          "Markt",
             "age":            "Alter",
-            "physical score":    "Physical Score (vs BL)",
-            "physical score 3l": "Physical Score (vs 3.Liga)",
+            "physical score":    "Speed+Burst (DACH%)",
+            "physical score 3l": "Laufintensität (DACH%)",
             "bl level":       "BL Level",
             "final_tier":     "Final Tier",
             "ifi_label":      "IFI Label",
@@ -694,11 +734,19 @@ with tab1:
 
         # Styling functions
         tier_bg = lambda v: {
-            "🔥 ELITE TARGET": "background-color:#4A1500;color:#FFB380;font-weight:700",
-            "🟢 TOP TARGET":   "background-color:#0A1F0A;color:#81C784;font-weight:700",
-            "🔵 INTERESTING":  "background-color:#060E22;color:#90CAF9;font-weight:700",
-            "🟡 WATCHLIST":    "background-color:#2A1A00;color:#FFCC80;font-weight:700",
-            "🔴 RISIKO":       "background-color:#1A0000;color:#EF9A9A;font-weight:700",
+            "🔥 Komplettpaket":      "background-color:#4A1500;color:#FFB380;font-weight:700",
+            "⚡ Physisches Talent":  "background-color:#3A1000;color:#FFCC80;font-weight:700",
+            "🏃 Athlet":             "background-color:#2A0800;color:#FFAB76;font-weight:700",
+            "🧠 Taktisch stark":     "background-color:#0A1F0A;color:#81C784;font-weight:700",
+            "👀 Interessant":        "background-color:#060E22;color:#90CAF9;font-weight:700",
+            "⚠️ Beobachten":         "background-color:#2A1A00;color:#FFCC80;font-weight:700",
+            "💡 Taktisch interessant":"background-color:#0A0A2A;color:#B39DDB;font-weight:700",
+            "🔥 ELITE TARGET":       "background-color:#4A1500;color:#FFB380;font-weight:700",
+            "🟢 TOP TARGET":         "background-color:#0A1F0A;color:#81C784;font-weight:700",
+            "🔵 INTERESTING":        "background-color:#060E22;color:#90CAF9;font-weight:700",
+            "🟡 WATCHLIST":          "background-color:#2A1A00;color:#FFCC80;font-weight:700",
+            "🔴 RISIKO":             "background-color:#1A0000;color:#EF9A9A;font-weight:700",
+            "⬜ NUR IFI":            "background-color:#222;color:#AAA;font-weight:700",
         }.get(v, "")
 
         ifi_bg = lambda v: {
@@ -766,24 +814,38 @@ with tab1:
             return row["name"]
         display_labels = df_display.apply(make_label, axis=1).tolist()
         label_to_idx   = {lbl: i for i, lbl in enumerate(display_labels)}
-        options        = ["— auswählen —"] + display_labels
-        sel_default    = 0
-        if sel_name:
-            for i, lbl in enumerate(display_labels):
-                if lbl.startswith(str(sel_name)):
-                    sel_default = i + 1
-                    break
+        options     = ["— auswählen —"] + display_labels
+        sel_default = 0
+        sel_row_idx = None
+
+        # Tabellenklick hat Vorrang
+        if event and event.selection and event.selection.rows:
+            idx = event.selection.rows[0]
+            if idx < len(df_display):
+                sel_row_idx = idx
+                sel_name    = df_display.iloc[idx]["name"]
+                sel_pos_row = df_display.iloc[idx].get("position", "Winger")
+                # Finde passendes Label
+                clicked_lbl = make_label(df_display.iloc[idx])
+                if clicked_lbl in label_to_idx:
+                    sel_default = label_to_idx[clicked_lbl] + 1
+
         sel_dd = st.selectbox("Oder Spieler auswählen:", options, index=sel_default, key="dd")
-        if sel_dd != "— auswählen —":
-            row_idx  = label_to_idx.get(sel_dd, 0)
-            sel_name = df_display.iloc[row_idx]["name"]
+        if sel_dd != "— auswählen —" and not (event and event.selection and event.selection.rows):
+            row_idx     = label_to_idx.get(sel_dd, 0)
+            sel_name    = df_display.iloc[row_idx]["name"]
             sel_pos_row = df_display.iloc[row_idx].get("position", "Winger")
-        else:
+            sel_row_idx = row_idx
+        elif sel_dd == "— auswählen —" and sel_row_idx is None:
             sel_pos_row = ""
 
         # ── DETAIL ────────────────────────────────────────────────────────────
-        if sel_name:
-            row_m = df[df["name"] == sel_name]
+        if sel_name and sel_pos_row:
+            # Nutze den angeklickten Eintrag direkt (richtige Position)
+            if sel_row_idx is not None and sel_row_idx < len(df_display):
+                row_m = df_display.iloc[[sel_row_idx]]
+            else:
+                row_m = df[df["name"] == sel_name]
             if not row_m.empty:
                 row      = row_m.iloc[0]
                 pos_row  = row.get("position", "Winger")
@@ -822,7 +884,7 @@ with tab1:
                     ps_disp  = f"{ps:.1f}" if ps > 0 else "—"
                     ps_3l    = float(row.get("physical score 3l", 0) or 0)
                     ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
-                    st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">⚡ Speed+Burst (vs BL)</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">⚡ Speed+Burst (DACH%)</div></div>', unsafe_allow_html=True)
                 with d2:
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:16px;color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
                 with d3:
@@ -1031,6 +1093,14 @@ Peer-Perzentil der IFI-Attribute pro Position + Liga.
 - 🔵 HIGH ≥ 31 km/h
 - 🟡 FAST ≥ 30 km/h
 - 🟠 MEDIUM ≥ 29 km/h
+
+**Kombiniertes Header-Label:**
+- 🔥 Komplettpaket = Physisch Elite + IFI Elite/Strong
+- ⚡ Physisches Talent = Physisch Elite + IFI Average
+- 🏃 Athlet = Physisch Elite + IFI Below/Weak
+- 🧠 Taktisch stark = Physisch Mid + IFI Elite/Strong
+- 👀 Interessant = Physisch Mid + IFI Average
+- 💡 Taktisch interessant = Physisch schwach + IFI Elite/Strong
 
 **Rollenprofile:** Clustering auf allen Ligen (≥500 min) — BL als Qualitätsreferenz
         """)

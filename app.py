@@ -184,6 +184,9 @@ if not check_password():
 def load_data():
     df = pd.read_csv("data/btl_scouting_app_data.csv")
     df.columns = [c.lower().strip() for c in df.columns]
+    # Normalize Pct_ columns to lowercase
+    rename_map = {c: c.lower() for c in df.columns if c.startswith('Pct_') or c.startswith('SC_')}
+    df = df.rename(columns=rename_map)
     if "age" in df.columns:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")
     df["markt"] = "DACH"
@@ -301,6 +304,10 @@ def recalc(df, weights, position):
             raw = sum(df[c].fillna(0) * (active.get(c.replace("pct_",""), 1) / tw) for c in pct_cols)
             df["pct_score"] = raw.rank(pct=True) * 100
 
+    # Handle both Pct_Score and pct_score column names
+    score_col = "pct_score" if "pct_score" in df.columns else "Pct_Score" if "Pct_Score" in df.columns else None
+    if score_col:
+        df["pct_score"] = df[score_col]
     df["ifi_label"]  = df["pct_score"].apply(ifi_label)
     df["speed_flag"] = df["sc_psv-99"].apply(speed_flag)
     df["final_tier"] = df.apply(lambda r: calc_final_tier(r, r.get("ifi_label","—")), axis=1)

@@ -865,7 +865,10 @@ with tab1:
             if not row_m.empty:
                 row      = row_m.iloc[0]
                 pos_row  = row.get("position", "Winger")
-                tier_l, tier_c = physical_tier(row.get("physical score", 0) or 0)
+                # Header: kombiniertes Label aus final_tier
+                tier_l   = row.get("final_tier", "—") or "—"
+                # Farbe aus physical_tier für konsistenz
+                _pt, tier_c = physical_tier(row.get("physical score", 0) or 0)
                 t_bg_val = TIER_COLORS.get(tier_l, "#333")
                 ifi_lbl  = row.get("ifi_label", "—")
                 em, ic, _ = IFI_LABEL_STYLE.get(ifi_lbl, ("—","#888","#FFF"))
@@ -904,7 +907,8 @@ with tab1:
                     ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
                     st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
                 with d2:
-                    st.markdown(f'<div class="jcard"><div class="val" style="font-size:16px;color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
+                    pt_l, pt_c = physical_tier(row.get("physical score", 0) or 0)
+                    st.markdown(f'<div class="jcard"><div class="val" style="font-size:14px;color:{pt_c};">{pt_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
                 with d3:
                     st.markdown(f'<div class="jcard"><div class="val">{ifi_pct:.0f}<span style="font-size:13px;color:#666;">%</span></div><div class="lbl">IFI Perzentil</div></div>', unsafe_allow_html=True)
                 with d4:

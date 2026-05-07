@@ -98,6 +98,9 @@ TIER_COLORS = {
     "🟡 WATCHLIST":         "#F0A500",
     "🔴 RISIKO":            "#4A0D0D",
     "⬜ NUR IFI":           "#333333",
+    "⚡ Schnell (nur Speed)":  "#B84000",
+    "🟡 Speed ok (nur Speed)": "#F0A500",
+    "🔵 Speed (nur Speed)":    "#0D47A1",
 }
 
 SPEED_FLAGS = {
@@ -224,10 +227,15 @@ def ifi_label(pct):
         return "—"
 
 def physical_tier(ps):
-    """ps is Speed+Burst global percentile (0-100), BL median ~58-64"""
+    """ps: positive = Speed+Burst percentile, negative = Speed only"""
     try:
         p = float(ps)
-        if np.isnan(p) or p <= 0: return "—",              "#555"
+        if np.isnan(p) or p == 0: return "—",               "#555"
+        if p < 0:  # Speed only — kein BL-Vergleich
+            sp = abs(p)
+            if sp >= 75:   return "⚡ Schnell (nur Speed)",  "#B84000"
+            elif sp >= 55: return "🟡 Speed ok (nur Speed)", "#F0A500"
+            else:          return "🔵 Speed (nur Speed)",    "#0D47A1"
         if p >= 75:    return "🔥 ELITE TARGET", ORG
         elif p >= 55:  return "🟢 TOP TARGET",   "#1B5E20"
         elif p >= 40:  return "🔵 INTERESTING",  "#0D47A1"
@@ -347,11 +355,17 @@ def render_physical_bars(row):
     bl_ref     = BL_MEDIANS.get(pos_row, 60.0)
 
     bm_html = ""
-    if pd.notna(ps_idx) and not (isinstance(ps_idx, float) and np.isnan(ps_idx)) and float(ps_idx) > 0:
-        lc   = label_color(bl_lbl)
-        diff = float(ps_idx) - bl_ref
-        sign = "pos" if diff >= 0 else "neg"
-        bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed+Burst:</span><span class="bm-val">{float(ps_idx):.1f}</span><span class="bm-delta-{sign}">{diff:+.1f} vs BL-Median ({bl_ref:.0f})</span><span style="margin-left:8px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'
+    if pd.notna(ps_idx) and not (isinstance(ps_idx, float) and np.isnan(ps_idx)) and float(ps_idx) != 0:
+        ps_val = float(ps_idx)
+        if ps_val < 0:
+            # Speed only
+            speed_pct = abs(ps_val)
+            bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed:</span><span class="bm-val">{speed_pct:.1f}%</span><span style="margin-left:8px;font-size:11px;color:#F0A500;">nur Speed — kein BL-Vergleich</span></div>'
+        else:
+            lc   = label_color(bl_lbl)
+            diff = ps_val - bl_ref
+            sign = "pos" if diff >= 0 else "neg"
+            bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed+Burst:</span><span class="bm-val">{ps_val:.1f}</span><span class="bm-delta-{sign}">{diff:+.1f} vs BL-Median ({bl_ref:.0f})</span><span style="margin-left:8px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'  
     if pd.notna(ps_idx_3l) and not (isinstance(ps_idx_3l, float) and np.isnan(float(ps_idx_3l) if pd.notna(ps_idx_3l) else float("nan"))) and float(ps_idx_3l) > 0:
         bm_html += f'<div class="bm-row"><span class="bm-label">🏃 Laufintensität:</span><span class="bm-val">{float(ps_idx_3l):.1f}</span><span style="margin-left:10px;font-size:11px;color:#888;">DACH-Perzentil</span></div>'
 
@@ -787,6 +801,8 @@ with tab1:
             "🟡 Nah dran":   "background-color:#2A1A00;color:#FFCC80;font-weight:700",
             "⚫ Darunter":   "color:#555",
         }.get(v, "")
+
+        speed_only_style = lambda v: "color:#F0A500;font-style:italic" if pd.notna(v) and float(v) < 0 else ""
         if "Final Tier" in disp.columns: styled = styled.map(tier_bg,     subset=["Final Tier"])
         if "IFI Label"  in disp.columns: styled = styled.map(ifi_bg,      subset=["IFI Label"])
         if "PSV-99"     in disp.columns: styled = styled.map(psv_bg,      subset=["PSV-99"])
@@ -881,10 +897,12 @@ with tab1:
 
                 d1, d2, d3, d4 = st.columns(4)
                 with d1:
-                    ps_disp  = f"{ps:.1f}" if ps > 0 else "—"
+                    ps_abs   = abs(ps) if pd.notna(ps) and ps != 0 else 0
+                    ps_disp  = f"{ps_abs:.1f}" if ps_abs > 0 else "—"
+                    ps_lbl   = "⚡ Speed+Burst (DACH%)" if ps > 0 else "⚡ Speed (DACH%)"
                     ps_3l    = float(row.get("physical score 3l", 0) or 0)
                     ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
-                    st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">⚡ Speed+Burst (DACH%)</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
                 with d2:
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:16px;color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
                 with d3:

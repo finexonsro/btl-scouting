@@ -590,7 +590,7 @@ with st.sidebar:
     else:
         mr = (100, 5000)
 
-    all_tiers = ["🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO","⬜ NUR IFI"]
+    all_tiers = ["🔥 Komplettpaket","⚡ Physisches Talent","🏃 Athlet","🧠 Taktisch stark","👀 Interessant","⚠️ Beobachten","💡 Taktisch interessant","⚡ Schnell (nur Speed)","🟡 Speed ok (nur Speed)","🔵 Speed (nur Speed)","⬜ NUR IFI","—","🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
     sel_final_tiers = st.multiselect("Final Tier", all_tiers, default=all_tiers)
 
     st.markdown('<div class="div"></div>', unsafe_allow_html=True)
@@ -661,10 +661,10 @@ st.markdown('<div class="div" style="margin:10px 0 16px;"></div>', unsafe_allow_
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 kpi_cols = st.columns(6)
-elite_top = len(df_f[df_f.get("final_tier", pd.Series(dtype=str)).isin(["🔥 ELITE TARGET","🟢 TOP TARGET"])]) if "final_tier" in df_f.columns else 0
+elite_top = len(df_f[df_f.get("final_tier", pd.Series(dtype=str)).isin(["🔥 Komplettpaket","⚡ Physisches Talent","🏃 Athlet","🧠 Taktisch stark","🔥 ELITE TARGET","🟢 TOP TARGET"])]) if "final_tier" in df_f.columns else 0
 ifi_elite = len(df_f[df_f.get("ifi_label", pd.Series(dtype=str)) == "ELITE"]) if "ifi_label" in df_f.columns else 0
 max_psv   = f'{df_f["sc_psv-99"].max():.2f}' if "sc_psv-99" in df_f.columns and len(df_f) > 0 else "—"
-max_ps    = f'{df_f["physical score"].max():.1f}' if "physical score" in df_f.columns and len(df_f) > 0 else "—"
+max_ps    = f'{df_f[df_f["physical score"] > 0]["physical score"].max():.1f}' if "physical score" in df_f.columns and (df_f["physical score"] > 0).any() else "—"
 med_age   = f'{int(df_f["age"].median())}' if "age" in df_f.columns and len(df_f) > 0 else "—"
 kpis = [
     (len(df_f),  "Spieler gesamt"),

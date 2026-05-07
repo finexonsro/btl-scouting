@@ -432,21 +432,29 @@ def make_radar(row, position):
 
 # ── HTML REPORT ───────────────────────────────────────────────────────────────
 def make_html_report(row, position):
-    pos_cfg  = POS_CONFIG.get(position, {})
-    attrs    = pos_cfg.get("attrs", [])
-    attrs_de = pos_cfg.get("attrs_de", attrs)
-    ifi_lbl  = row.get("ifi_label", "—")
+    pos_cfg   = POS_CONFIG.get(position, {})
+    attrs     = pos_cfg.get("attrs", [])
+    attrs_de  = pos_cfg.get("attrs_de", attrs)
+    ifi_lbl   = row.get("ifi_label", "—")
     em, ic, _ = IFI_LABEL_STYLE.get(ifi_lbl, ("—","#888","#FFF"))
     ps        = float(row.get("physical score", 0) or 0)
-    tier_l, tier_c = physical_tier(ps)
-    t_bg      = TIER_COLORS.get(tier_l, "#333")
+    ps_abs    = abs(ps)
+    speed_only = ps < 0
+    pt_l, tier_c = physical_tier(ps)
+    final_tier_l = row.get("final_tier", pt_l) or pt_l
+    t_bg      = TIER_COLORS.get(final_tier_l, TIER_COLORS.get(pt_l, "#333"))
     ifi_pct   = float(row.get("pct_score", 50) or 50)
     psv       = float(row.get("sc_psv-99", 0) or 0)
     sf        = row.get("speed_flag", "—")
-    bm_bl     = row.get("benchmark_bl", "—")
-    bm_3l     = row.get("benchmark_3liga", "—")
-    d_bl      = row.get("δ_vs_bl", "—")
-    d_3l      = row.get("δ_vs_3liga", "—")
+    bl_lbl    = row.get("bl level", "—")
+    ps_3l     = float(row.get("physical score 3l", 0) or 0)
+    # BL Median referenz
+    BL_MEDIANS = {"Winger": 58.7, "Striker": 56.5, "Midfielder": 58.7,
+                  "Fullback": 64.4, "Central Defender": 54.0}
+    bl_ref    = BL_MEDIANS.get(position, 60.0)
+    diff_bl   = ps_abs - bl_ref if ps_abs > 0 else None
+    spielertyp = str(row.get("spielertyp","—")) if pd.notna(row.get("spielertyp")) else "—"
+    age_disp  = str(int(row.get("age"))) if pd.notna(row.get("age")) else "—"
 
     phys_rows = ""
     for nm, val, color in [
@@ -487,13 +495,21 @@ def make_html_report(row, position):
             <td style="padding:5px 8px;font-size:12px;color:{c2};font-weight:600;">{pct:.0f}% {em2}</td>
         </tr>"""
 
-    try:
-        d_bl_str  = f"{float(d_bl):+.1f}" if pd.notna(d_bl) else "—"
-        d_3l_str  = f"{float(d_3l):+.1f}" if pd.notna(d_3l) else "—"
-        bm_bl_str = f"{float(bm_bl):.1f}" if pd.notna(bm_bl) else "—"
-        bm_3l_str = f"{float(bm_3l):.1f}" if pd.notna(bm_3l) else "—"
-    except:
-        d_bl_str = d_3l_str = bm_bl_str = bm_3l_str = "—"
+
+    # Physical score display
+    ps_lbl   = "⚡ Speed (DACH%)" if speed_only else "⚡ Speed+Burst (DACH%)"
+    ps_disp  = f"{ps_abs:.1f}"
+    # BL Median row
+    if not speed_only and ps_abs > 0 and diff_bl is not None:
+        lc_bl = {"🔥 Top-Athlet":"#E8560A","✅ BL-Niveau":"#27AE60",
+                  "🟡 Nah dran":"#F0A500","⚫ Darunter":"#888"}.get(bl_lbl,"#888")
+        sign_str = f"+{diff_bl:.1f}" if diff_bl >= 0 else f"{diff_bl:.1f}"
+        bl_row = f'<div style="margin:6px 0;font-size:12px;">⚡ Speed+Burst: <b>{ps_abs:.1f}</b> <span style="color:{"#27AE60" if diff_bl>=0 else "#E74C3C"};">{sign_str} vs BL-Median ({bl_ref:.0f})</span> <span style="color:{lc_bl};font-weight:700;">{bl_lbl}</span></div>'
+    elif speed_only:
+        bl_row = f'<div style="margin:6px 0;font-size:12px;">⚡ Speed: <b>{ps_abs:.1f}%</b> <span style="color:#F0A500;">nur Speed — kein BL-Vergleich</span></div>'
+    else:
+        bl_row = ""
+    lauf_row = f'<div style="margin:6px 0;font-size:12px;">🏃 Laufintensität: <b>{ps_3l:.1f}</b> <span style="color:#888;">DACH-Perzentil</span></div>' if ps_3l > 0 else ""
 
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Scouting Report – {row.get('name','—')}</title>
@@ -506,28 +522,31 @@ body{{font-family:Arial,sans-serif;margin:0;padding:24px;background:#fff;max-wid
     border-radius:20px;font-size:13px;font-weight:700;margin-top:10px;}}
 .cards{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}}
 .card{{border:1px solid #ddd;border-top:3px solid {ORG};border-radius:8px;padding:12px;text-align:center;}}
-.card .val{{font-size:20px;font-weight:700;color:#111;}}
+.card .val{{font-size:18px;font-weight:700;color:#111;}}
 .card .lbl{{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;}}
 .section h2{{font-size:13px;color:{ORG};text-transform:uppercase;letter-spacing:0.1em;
     border-bottom:1px solid #eee;padding-bottom:5px;margin:16px 0 8px;}}
+.phys-box{{background:#f9f9f9;border-radius:8px;padding:12px 16px;margin-bottom:12px;}}
 table{{width:100%;border-collapse:collapse;}}
 </style></head><body>
 <div class="header">
     <h1>{row.get('name','—')}</h1>
-    <p>{row.get('team','—')} · {row.get('liga','—')} · {pos_cfg.get('de',position)} · {row.get('spielertyp','—')} · {safe_val(row.get('age'),'—')} J. · {safe_val(row.get('minutes'),'—')} min</p>
-    <div class="badge">{tier_l}</div>
+    <p>{row.get('team','—')} · {row.get('liga','—')} · {pos_cfg.get('de',position)} · {spielertyp} · {age_disp} J. · {safe_val(row.get('minutes'),'—')} min</p>
+    <div class="badge">{final_tier_l}</div>
 </div>
 <div class="cards">
-    <div class="card"><div class="val">{ps:.1f}</div><div class="lbl">⚡ Speed+Burst (DACH%)</div></div>
-    <div class="card"><div class="val" style="color:{tier_c};">{tier_l}</div><div class="lbl">Physical Tier</div></div>
+    <div class="card"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>
+    <div class="card"><div class="val" style="color:{tier_c};font-size:14px;">{pt_l}</div><div class="lbl">Physical Tier</div></div>
     <div class="card"><div class="val">{ifi_pct:.0f}%</div><div class="lbl">IFI Perzentil</div></div>
     <div class="card"><div class="val" style="color:{ic};">{em}</div><div class="lbl">IFI Label</div></div>
 </div>
 <div class="cards">
     <div class="card"><div class="val">{psv:.2f} km/h</div><div class="lbl">PSV-99</div></div>
     <div class="card"><div class="val">{sf}</div><div class="lbl">Speed Flag</div></div>
-    <div class="card"><div class="val">{bm_bl_str} ({d_bl_str})</div><div class="lbl">vs BL Benchmark</div></div>
-    <div class="card"><div class="val">{bm_3l_str} ({d_3l_str})</div><div class="lbl">vs 3.Liga Benchmark</div></div>
+</div>
+<div class="phys-box">
+{bl_row}
+{lauf_row}
 </div>
 <div class="section"><h2>⚡ Physical Breakdown</h2><table>{phys_rows}</table></div>
 <div class="section"><h2>🎯 IFI Profil — {pos_cfg.get('de',position)}</h2><table>{ifi_rows}</table></div>

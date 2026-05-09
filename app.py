@@ -98,7 +98,8 @@ TIER_COLORS = {
     "🟡 WATCHLIST":         "#F0A500",
     "🔴 RISIKO":            "#4A0D0D",
     "⬜ NUR IFI":           "#333333",
-    "⚡ Schnell (nur Speed)":  "#B84000",
+    "⚡ Schnell (nur Speed)":         "#B84000",
+    "⚡ Schnell + Taktisch stark": "#7B3F00",
     "🟡 Speed ok (nur Speed)": "#F0A500",
     "🔵 Speed (nur Speed)":    "#0D47A1",
 }
@@ -258,13 +259,23 @@ def calc_final_tier(row, ifi_lbl):
     ps = row.get("physical score", np.nan)
     try:
         ps_val = float(ps)
-        has_physical = not np.isnan(ps_val) and ps_val > 0
+        has_physical     = not np.isnan(ps_val) and ps_val > 0   # Speed+Burst
+        has_speed_only   = not np.isnan(ps_val) and ps_val < 0   # nur Speed
     except:
-        has_physical = False
+        has_physical   = False
+        has_speed_only = False
     has_ifi = pd.notna(row.get("pct_score", np.nan))
 
-    if not has_physical and not has_ifi:
+    if not has_physical and not has_speed_only and not has_ifi:
         return "—"
+    if has_speed_only and not has_ifi:
+        return "⚡ Schnell (nur Speed)"
+    if has_speed_only and has_ifi:
+        # Kombiniere Speed mit IFI
+        sp = abs(float(ps))
+        if sp >= 75 and ifi_lbl in ["ELITE","STRONG"]:  return "⚡ Schnell + Taktisch stark"
+        elif sp >= 75:                                    return "⚡ Schnell (nur Speed)"
+        else:                                             return "⬜ NUR IFI"
     if not has_physical:
         return "⬜ NUR IFI"
 
@@ -630,7 +641,7 @@ with st.sidebar:
     else:
         mr = (100, 5000)
 
-    all_tiers = ["🔥 Komplettpaket","⚡ Physisches Talent","🏃 Athlet","🧠 Taktisch stark","👀 Interessant","⚠️ Beobachten","💡 Taktisch interessant","⚡ Schnell (nur Speed)","🟡 Speed ok (nur Speed)","🔵 Speed (nur Speed)","⬜ NUR IFI","—","🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
+    all_tiers = ["🔥 Komplettpaket","⚡ Physisches Talent","🏃 Athlet","🧠 Taktisch stark","👀 Interessant","⚠️ Beobachten","💡 Taktisch interessant","⚡ Schnell (nur Speed)","⚡ Schnell + Taktisch stark","🟡 Speed ok (nur Speed)","🔵 Speed (nur Speed)","⬜ NUR IFI","—","🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
     sel_final_tiers = st.multiselect("Final Tier", all_tiers, default=all_tiers)
 
     st.markdown('<div class="div"></div>', unsafe_allow_html=True)

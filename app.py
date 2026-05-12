@@ -228,21 +228,30 @@ def ifi_label(pct):
     except:
         return "—"
 
-def physical_tier(ps):
-    """ps: positive = Speed+Burst percentile, negative = Speed only"""
+BL_THRESHOLDS = {
+    "Winger":           {"elite": 85, "bl": 70, "nah": 55, "darunter": 35},
+    "Striker":          {"elite": 80, "bl": 60, "nah": 45, "darunter": 30},
+    "Midfielder":       {"elite": 80, "bl": 65, "nah": 50, "darunter": 35},
+    "Fullback":         {"elite": 80, "bl": 65, "nah": 50, "darunter": 35},
+    "Central Defender": {"elite": 75, "bl": 55, "nah": 40, "darunter": 25},
+}
+
+def physical_tier(ps, position=""):
+    """ps: positive = Speed+Burst DACH%, negative = Speed only"""
     try:
         p = float(ps)
         if np.isnan(p) or p == 0: return "—",               "#555"
-        if p < 0:  # Speed only — kein BL-Vergleich
+        if p < 0:  # Speed only
             sp = abs(p)
             if sp >= 75:   return "⚡ Schnell (nur Speed)",  "#B84000"
             elif sp >= 55: return "🟡 Speed ok (nur Speed)", "#F0A500"
             else:          return "🔵 Speed (nur Speed)",    "#0D47A1"
-        if p >= 75:    return "🔥 ELITE TARGET", ORG
-        elif p >= 55:  return "🟢 TOP TARGET",   "#1B5E20"
-        elif p >= 40:  return "🔵 INTERESTING",  "#0D47A1"
-        elif p >= 25:  return "🟡 WATCHLIST",    ORG2
-        else:          return "🔴 RISIKO",       "#4A0D0D"
+        t = BL_THRESHOLDS.get(position, {"elite":75,"bl":55,"nah":40,"darunter":25})
+        if p >= t["elite"]:      return "🔥 ELITE TARGET", ORG
+        elif p >= t["bl"]:       return "🟢 TOP TARGET",   "#1B5E20"
+        elif p >= t["nah"]:      return "🔵 INTERESTING",  "#0D47A1"
+        elif p >= t["darunter"]: return "🟡 WATCHLIST",    ORG2
+        else:                    return "🔴 RISIKO",       "#4A0D0D"
     except:
         return "—", "#555"
 
@@ -279,7 +288,7 @@ def calc_final_tier(row, ifi_lbl):
     if not has_physical:
         return "⬜ NUR IFI"
 
-    tier, _ = physical_tier(ps)
+    tier, _ = physical_tier(ps, "")
     order = ["🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
     if tier not in order:
         return "⬜ NUR IFI" if has_ifi else "—"
@@ -330,7 +339,7 @@ def recalc(df, weights, position):
 # ── PHYSICAL BARS ─────────────────────────────────────────────────────────────
 def render_physical_bars(row):
     ps     = float(row.get("physical score", 0) or 0)
-    tier_l, tier_c = physical_tier(ps)
+    tier_l, tier_c = physical_tier(ps, "")
 
     comps = [
         ("⚡ Top-Speed",         row.get("pct_speed", 0),  ORG),
@@ -363,7 +372,7 @@ def render_physical_bars(row):
     ps_idx_3l = row.get("physical score 3l", np.nan)
 
     def label_color(lbl):
-        return {"🔥 Weit über": "#FFB380", "✅ BL-Niveau": "#81C784",
+        return {"🔥 Top-Athlet": "#FFB380", "✅ BL-Niveau": "#81C784",
                 "✅ 3L-Niveau": "#81C784", "🟡 Nah dran": "#FFCC80",
                 "⚫ Darunter": "#888"}.get(lbl, "#888")
 
@@ -468,7 +477,7 @@ def make_html_report(row, position):
     ps        = float(row.get("physical score", 0) or 0)
     ps_abs    = abs(ps)
     speed_only = ps < 0
-    pt_l, tier_c = physical_tier(ps)
+    pt_l, tier_c = physical_tier(ps, "")
     final_tier_l = row.get("final_tier", pt_l) or pt_l
     t_bg      = TIER_COLORS.get(final_tier_l, TIER_COLORS.get(pt_l, "#333"))
     ifi_pct   = float(row.get("pct_score", 50) or 50)
@@ -924,7 +933,7 @@ with tab1:
                 # Header: kombiniertes Label aus final_tier
                 tier_l   = row.get("final_tier", "—") or "—"
                 # Farbe aus physical_tier für konsistenz
-                _pt, tier_c = physical_tier(row.get("physical score", 0) or 0)
+                _pt, tier_c = physical_tier(row.get("physical score", 0) or 0, row.get("position",""))
                 t_bg_val = TIER_COLORS.get(tier_l, "#333")
                 ifi_lbl  = row.get("ifi_label", "—")
                 em, ic, _ = IFI_LABEL_STYLE.get(ifi_lbl, ("—","#888","#FFF"))
@@ -963,7 +972,7 @@ with tab1:
                     ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
                     st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
                 with d2:
-                    pt_l, pt_c = physical_tier(row.get("physical score", 0) or 0)
+                    pt_l, pt_c = physical_tier(row.get("physical score", 0) or 0, row.get("position",""))
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:14px;color:{pt_c};">{pt_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
                 with d3:
                     st.markdown(f'<div class="jcard"><div class="val">{ifi_pct:.0f}<span style="font-size:13px;color:#666;">%</span></div><div class="lbl">IFI Perzentil</div></div>', unsafe_allow_html=True)

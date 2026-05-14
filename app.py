@@ -1122,36 +1122,40 @@ with tab1:
                 with d4:
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:16px;color:{ic};">{em}</div><div class="lbl">IFI Label</div></div>', unsafe_allow_html=True)
 
-                # ── LAYER CARDS — full width ────────────────────────────────
-                _bench_title = f"Physical Layer Profile ({_bench_lbl})"
-                st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin:10px 0 6px;">{_bench_title}</div>', unsafe_allow_html=True)
-                cards_html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">'
-                for layer, score in zip(["speed","burst","otip","bip"],[sl,bl,ol,pl]):
-                    clr  = LAYER_COLORS_BTL[layer]
-                    lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
-                    sc_disp_l = f"{int(round(score))}" if pd.notna(score) else "—"
-                    cards_html += f'''<div style="background:#1C1C1C;border:1px solid #2A2A2A;
-                        border-top:4px solid {clr};border-radius:6px;padding:16px 8px;text-align:center;">
-                        <div style="font-size:10px;color:#888;letter-spacing:0.12em;
-                            text-transform:uppercase;font-weight:600;margin-bottom:4px;">
-                            {LAYER_LABELS_BTL[layer]}</div>
-                        <div style="font-size:42px;font-weight:800;color:{clr};line-height:1.05;">{sc_disp_l}</div>
-                        <div style="font-size:9px;color:#666;margin-top:3px;">{LAYER_DESC_BTL[layer]}</div>
-                        <div style="font-size:12px;font-weight:700;color:{lbl_c};margin-top:6px;">{lbl_l}</div>
-                    </div>'''
-                cards_html += '</div>'
-                st.markdown(cards_html, unsafe_allow_html=True)
+                # ── TWO COLUMN LAYOUT: Physical (left) | IFI (right) ───────
+                left_col, right_col = st.columns([1, 1])
 
-                # ── PHYSICAL BREAKDOWN (left) + RADAR (right) ──────────────
-                ch1, ch2 = st.columns([1,1])
-                with ch1:
+                with left_col:
+                    # Layer Cards
+                    _bench_title = f"Physical Layer Profile ({_bench_lbl})"
+                    st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin:10px 0 6px;">{_bench_title}</div>', unsafe_allow_html=True)
+                    cards_html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">'
+                    for layer, score in zip(["speed","burst","otip","bip"],[sl,bl,ol,pl]):
+                        clr  = LAYER_COLORS_BTL[layer]
+                        lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
+                        sc_disp_l = f"{int(round(score))}" if pd.notna(score) else "—"
+                        cards_html += f'''<div style="background:#1C1C1C;border:1px solid #2A2A2A;
+                            border-top:3px solid {clr};border-radius:6px;padding:12px 6px;text-align:center;">
+                            <div style="font-size:9px;color:#888;letter-spacing:0.1em;
+                                text-transform:uppercase;font-weight:600;margin-bottom:3px;">
+                                {LAYER_LABELS_BTL[layer]}</div>
+                            <div style="font-size:36px;font-weight:800;color:{clr};line-height:1.05;">{sc_disp_l}</div>
+                            <div style="font-size:8px;color:#666;margin-top:2px;">{LAYER_DESC_BTL[layer]}</div>
+                            <div style="font-size:11px;font-weight:700;color:{lbl_c};margin-top:5px;">{lbl_l}</div>
+                        </div>'''
+                    cards_html += '</div>'
+                    st.markdown(cards_html, unsafe_allow_html=True)
+
+                    # Physical Breakdown
                     if has_physical:
-                        st.markdown("**⚡ Physical Breakdown**")
+                        st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin-bottom:6px;">⚡ Physical Breakdown</div>', unsafe_allow_html=True)
                         phys_html = render_physical_bars(row)
                         st.markdown(f'<div style="background:#2E2E2E;border:1px solid #444;border-radius:8px;padding:14px 16px;">{phys_html}</div>', unsafe_allow_html=True)
                     else:
                         st.info("⚡ Kein Physical Score verfügbar")
-                with ch2:
+
+                with right_col:
+                    # IFI Radar
                     if has_ifi:
                         radar = make_radar(row, pos_row)
                         if radar:

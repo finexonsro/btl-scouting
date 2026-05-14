@@ -85,23 +85,20 @@ IFI_LABEL_STYLE = {
 }
 
 TIER_COLORS = {
-    "🔥 Komplettpaket":     "#E8560A",
-    "⚡ Physisches Talent": "#B84000",
-    "🏃 Athlet":            "#7B3F00",
-    "🧠 Taktisch stark":    "#1B5E20",
-    "👀 Interessant":       "#0D47A1",
-    "⚠️ Beobachten":        "#F0A500",
-    "💡 Taktisch interessant": "#1A237E",
-    "🔥 ELITE TARGET":      "#E8560A",
-    "🟢 TOP TARGET":        "#1B5E20",
-    "🔵 INTERESTING":       "#0D47A1",
-    "🟡 WATCHLIST":         "#F0A500",
-    "🔴 RISIKO":            "#4A0D0D",
-    "⬜ NUR IFI":           "#333333",
-    "⚡ Schnell (nur Speed)":         "#B84000",
-    "⚡ Schnell + Taktisch stark": "#7B3F00",
-    "🟡 Speed ok (nur Speed)": "#F0A500",
-    "🔵 Speed (nur Speed)":    "#0D47A1",
+    "🔥 Complete Athlete":      "#E8560A",
+    "🔥 Phys. Elite":           "#B84000",
+    "🧱 Wrecking Ball":         "#CC2229",
+    "⚡ Speed Demon":           "#F0A500",
+    "⚡ Speed Only":            "#B84000",
+    "⚡ Speed + Taktik":        "#B84000",
+    "💪 Work Horse":            "#27AE60",
+    "🚀 Raw Athlete":           "#1B6CA8",
+    "🚀 Raw Athlete + Taktik":  "#1B6CA8",
+    "👀 Emerging Talent":       "#666666",
+    "👀 Emerging + Taktik":     "#666666",
+    "💡 Taktiker":              "#1A237E",
+    "⬜ NUR IFI":               "#333333",
+    "—":                        "#333333",
 }
 
 SPEED_FLAGS = {
@@ -385,20 +382,36 @@ def physical_tier(ps, position=""):
     """ps: positive = Speed+Burst DACH%, negative = Speed only"""
     try:
         p = float(ps)
-        if np.isnan(p) or p == 0: return "—",               "#555"
-        if p < 0:  # Speed only
-            sp = abs(p)
-            if sp >= 75:   return "⚡ Schnell (nur Speed)",  "#B84000"
-            elif sp >= 55: return "🟡 Speed ok (nur Speed)", "#F0A500"
-            else:          return "🔵 Speed (nur Speed)",    "#0D47A1"
+        if np.isnan(p) or p == 0: return "—", "#555"
+        if p < 0:
+            return ("⚡ Speed Only", "#B84000") if abs(p) >= 75 else ("⚡ Speed Only", "#F0A500")
         t = BL_THRESHOLDS.get(position, {"elite":75,"bl":55,"nah":40,"darunter":25})
-        if p >= t["elite"]:      return "🔥 ELITE TARGET", ORG
-        elif p >= t["bl"]:       return "🟢 TOP TARGET",   "#1B5E20"
-        elif p >= t["nah"]:      return "🔵 INTERESTING",  "#0D47A1"
-        elif p >= t["darunter"]: return "🟡 WATCHLIST",    ORG2
-        else:                    return "🔴 RISIKO",       "#4A0D0D"
+        if p >= t["elite"]:      return "🔥 Phys. Elite",   ORG
+        elif p >= t["bl"]:       return "✅ Strong Athlete", "#27AE60"
+        elif p >= t["nah"]:      return "🟡 Avg Athlete",   "#F0A500"
+        elif p >= t["darunter"]: return "🔵 Dev Athlete",   "#1B6CA8"
+        else:                    return "⚫ Below",          "#555"
     except:
         return "—", "#555"
+
+def physical_tier_from_layers(row):
+    """IT-style profile from 4 layer scores."""
+    s, b, o, p = get_layer_scores_btl(row)
+    s0 = s if pd.notna(s) else 0
+    b0 = b if pd.notna(b) else 0
+    o0 = o if pd.notna(o) else 0
+    p0 = p if pd.notna(p) else 0
+    lbl = get_btl_profile(s0, b0, o0, p0)
+    colors = {
+        "🔥 Complete Athlete": ORG,
+        "🧱 Wrecking Ball":    "#CC2229",
+        "⚡ Speed Demon":      "#F0A500",
+        "💪 Work Horse":       "#27AE60",
+        "🚀 Raw Athlete":      "#1B6CA8",
+        "👀 Emerging Talent":  "#888",
+        "—":                   "#555",
+    }
+    return lbl, colors.get(lbl, "#555")
 
 def bl_level_color(label):
     return {
@@ -410,49 +423,43 @@ def bl_level_color(label):
     }.get(str(label), "#444444")
 
 def calc_final_tier(row, ifi_lbl):
+    """Combined badge: IT-style physical profile + IFI context."""
     ps = row.get("physical score", np.nan)
     try:
-        ps_val = float(ps)
-        has_physical     = not np.isnan(ps_val) and ps_val > 0   # Speed+Burst
-        has_speed_only   = not np.isnan(ps_val) and ps_val < 0   # nur Speed
+        ps_val       = float(ps)
+        has_physical = not np.isnan(ps_val) and ps_val > 0
+        has_speed    = not np.isnan(ps_val) and ps_val < 0
     except:
-        has_physical   = False
-        has_speed_only = False
-    has_ifi = pd.notna(row.get("pct_score", np.nan))
+        has_physical = has_speed = False
 
-    if not has_physical and not has_speed_only and not has_ifi:
+    has_ifi    = pd.notna(row.get("pct_score", np.nan))
+    has_layers = pd.notna(row.get("pct_speed_global", np.nan))
+    ifi_strong = ifi_lbl in ["ELITE","STRONG"]
+
+    if not has_physical and not has_speed and not has_ifi:
         return "—"
-    if has_speed_only and not has_ifi:
-        return "⚡ Schnell (nur Speed)"
-    if has_speed_only and has_ifi:
-        # Kombiniere Speed mit IFI
+    if not has_physical and not has_speed:
+        return "💡 Taktiker" if ifi_strong else "⬜ NUR IFI"
+    if has_speed:
         sp = abs(float(ps))
-        if sp >= 75 and ifi_lbl in ["ELITE","STRONG"]:  return "⚡ Schnell + Taktisch stark"
-        elif sp >= 75:                                    return "⚡ Schnell (nur Speed)"
-        else:                                             return "⬜ NUR IFI"
-    if not has_physical:
+        if sp >= 75 and ifi_strong: return "⚡ Speed + Taktik"
+        if sp >= 75:                return "⚡ Speed Only"
+        return "💡 Taktiker" if ifi_strong else "⬜ NUR IFI"
+
+    if has_layers:
+        phys_lbl, _ = physical_tier_from_layers(row)
+    else:
+        phys_lbl = "👀 Emerging Talent"
+
+    if phys_lbl == "👀 Emerging Talent" and ifi_strong:
+        return "👀 Emerging + Taktik"
+    if phys_lbl == "🚀 Raw Athlete" and ifi_strong:
+        return "🚀 Raw Athlete + Taktik"
+    if phys_lbl in ["—"] and ifi_strong:
+        return "💡 Taktiker"
+    if phys_lbl == "—":
         return "⬜ NUR IFI"
-
-    tier, _ = physical_tier(ps, "")
-    order = ["🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
-    if tier not in order:
-        return "⬜ NUR IFI" if has_ifi else "—"
-
-    # Kombiniertes Label aus Physical + IFI
-    phys_elite = tier in ["🔥 ELITE TARGET","🟢 TOP TARGET"]
-    phys_mid   = tier in ["🔵 INTERESTING"]
-    ifi_elite  = ifi_lbl in ["ELITE","STRONG"]
-    ifi_mid    = ifi_lbl in ["AVERAGE"]
-    ifi_weak   = ifi_lbl in ["BELOW","WEAK"]
-
-    if phys_elite and ifi_elite:  return "🔥 Komplettpaket"
-    if phys_elite and ifi_mid:    return "⚡ Physisches Talent"
-    if phys_elite and ifi_weak:   return "🏃 Athlet"
-    if phys_mid   and ifi_elite:  return "🧠 Taktisch stark"
-    if phys_mid   and ifi_mid:    return "👀 Interessant"
-    if phys_mid   and ifi_weak:   return "⚠️ Beobachten"
-    if ifi_elite:                 return "💡 Taktisch interessant"
-    return tier
+    return phys_lbl
 
 def recalc(df, weights, position):
     df = df.copy()
@@ -776,7 +783,7 @@ with st.sidebar:
     else:
         mr = (100, 5000)
 
-    all_tiers = ["🔥 Komplettpaket","⚡ Physisches Talent","🏃 Athlet","🧠 Taktisch stark","👀 Interessant","⚠️ Beobachten","💡 Taktisch interessant","⚡ Schnell (nur Speed)","⚡ Schnell + Taktisch stark","🟡 Speed ok (nur Speed)","🔵 Speed (nur Speed)","⬜ NUR IFI","—","🔥 ELITE TARGET","🟢 TOP TARGET","🔵 INTERESTING","🟡 WATCHLIST","🔴 RISIKO"]
+    all_tiers = list(TIER_COLORS.keys())
     sel_final_tiers = st.multiselect("Final Tier", all_tiers, default=all_tiers)
 
     st.markdown('<div class="div"></div>', unsafe_allow_html=True)
@@ -934,19 +941,19 @@ with tab1:
 
         # Styling functions
         tier_bg = lambda v: {
-            "🔥 Komplettpaket":      "background-color:#4A1500;color:#FFB380;font-weight:700",
-            "⚡ Physisches Talent":  "background-color:#3A1000;color:#FFCC80;font-weight:700",
-            "🏃 Athlet":             "background-color:#2A0800;color:#FFAB76;font-weight:700",
-            "🧠 Taktisch stark":     "background-color:#0A1F0A;color:#81C784;font-weight:700",
-            "👀 Interessant":        "background-color:#060E22;color:#90CAF9;font-weight:700",
-            "⚠️ Beobachten":         "background-color:#2A1A00;color:#FFCC80;font-weight:700",
-            "💡 Taktisch interessant":"background-color:#0A0A2A;color:#B39DDB;font-weight:700",
-            "🔥 ELITE TARGET":       "background-color:#4A1500;color:#FFB380;font-weight:700",
-            "🟢 TOP TARGET":         "background-color:#0A1F0A;color:#81C784;font-weight:700",
-            "🔵 INTERESTING":        "background-color:#060E22;color:#90CAF9;font-weight:700",
-            "🟡 WATCHLIST":          "background-color:#2A1A00;color:#FFCC80;font-weight:700",
-            "🔴 RISIKO":             "background-color:#1A0000;color:#EF9A9A;font-weight:700",
-            "⬜ NUR IFI":            "background-color:#222;color:#AAA;font-weight:700",
+            "🔥 Complete Athlete":      "background-color:#4A1500;color:#FFB380;font-weight:700",
+            "🔥 Phys. Elite":           "background-color:#3A1000;color:#FFB380;font-weight:700",
+            "🧱 Wrecking Ball":         "background-color:#3A0005;color:#FF8A80;font-weight:700",
+            "⚡ Speed Demon":           "background-color:#2A1A00;color:#FFD180;font-weight:700",
+            "⚡ Speed Only":            "background-color:#2A1A00;color:#FFD180;font-weight:700",
+            "⚡ Speed + Taktik":        "background-color:#2A1A00;color:#FFD180;font-weight:700",
+            "💪 Work Horse":            "background-color:#0A1F0A;color:#81C784;font-weight:700",
+            "🚀 Raw Athlete":           "background-color:#060E22;color:#90CAF9;font-weight:700",
+            "🚀 Raw Athlete + Taktik":  "background-color:#060E22;color:#90CAF9;font-weight:700",
+            "👀 Emerging Talent":       "background-color:#1A1A1A;color:#AAA;font-weight:700",
+            "👀 Emerging + Taktik":     "background-color:#1A1A1A;color:#AAA;font-weight:700",
+            "💡 Taktiker":              "background-color:#0A0A2A;color:#B39DDB;font-weight:700",
+            "⬜ NUR IFI":              "background-color:#222;color:#AAA;font-weight:700",
         }.get(v, "")
 
         ifi_bg = lambda v: {
@@ -1494,32 +1501,32 @@ with tab4:
 with tab5:
     ca, cb_ = st.columns(2)
     with ca:
-        st.markdown("### Physical Layer Profile (DACH%)")
+        st.markdown("### Physical Layer Profile")
         st.markdown("""
-**4 Layer — basierend auf belgischem Recruitment-Ansatz:**
+**4 Layer — Belgisches Recruitment-Modell:**
 
-⚡ **SPEED** — Athletic Ceiling
-PSV-99, Sprint Distance, HSR Distance
-→ Wie schnell ist der Spieler maximal?
+⚡ **SPEED** — Athletic Ceiling  
+PSV-99, Sprint Distance, HSR Distance  
+→ Maximale Geschwindigkeit & Top-End-Athletik
 
-🚀 **BURST** — Explosive Activation
-Time to Sprint, Time to HSR, Explosive Acc
-→ Wie schnell kommt er auf Höchstgeschwindigkeit?
+🚀 **BURST** — Explosive Activation  
+Time to Sprint, Time to HSR, Explosive Acc  
+→ Explosivität & Zugang zu Höchstgeschwindigkeit
 
-🏃 **OTIP** — Defensive Athleticism
-Sprint Dist OTIP, HSR Dist OTIP, Explosive Acc OTIP
-→ Wie intensiv ist er ohne Ball defensiv?
+🏃 **OTIP** — Defensive Athleticism  
+Sprint/HSR Dist OTIP, Explosive Acc OTIP  
+→ Defensive Intensität ohne Ball
 
-💥 **BIP** — Active Game Intensity
-Sprint Dist BIP, HSR Dist BIP, Explosive Acc BIP
-→ Wie aktiv ist er physisch im Spielfluss?
+💥 **BIP** — Active Game Intensity  
+Sprint/HSR Dist BIP, Explosive Acc BIP  
+→ Physische Aktivität im aktiven Spielfluss
 
-**Benchmark:**
-- DACH% = DACH-Perzentil pro Position (alle 13 Ligen)
-- Top 5 = Vergleich vs Top 5 Ligen Mediane (2025/26)
+**Benchmark (wählbar unten in Spielerliste):**
+- **DACH%** = Perzentil vs alle DACH-Spieler pro Position
+- **Top 5** = Vergleich vs Top 5 Ligen Mediane (2025/26)
 
-**Level Labels:**
-🔥 Elite ≥85% | ✅ Stark ≥65% | 🟡 Durchschnitt ≥45% | 🔵 Entwicklung ≥25% | ⚫ Darunter <25%
+**Layer Level Labels:**
+🔥 Elite ≥85 | ✅ Stark ≥65 | 🟡 Durchschnitt ≥45 | 🔵 Entwicklung ≥25 | ⚫ Darunter
 
 | Komponente | Winger | Striker | MF | FB | IV |
 |---|---|---|---|---|---|
@@ -1567,12 +1574,19 @@ Peer-Perzentil der IFI-Attribute pro Position + Liga.
 - 🟠 MEDIUM ≥ 29 km/h
 
 **Kombiniertes Header-Label:**
-- 🔥 Komplettpaket = Physisch Elite + IFI Elite/Strong
-- ⚡ Physisches Talent = Physisch Elite + IFI Average
-- 🏃 Athlet = Physisch Elite + IFI Below/Weak
-- 🧠 Taktisch stark = Physisch Mid + IFI Elite/Strong
-- 👀 Interessant = Physisch Mid + IFI Average
-- 💡 Taktisch interessant = Physisch schwach + IFI Elite/Strong
+**Physical Profile (aus 4 Layern):**
+- 🔥 **Complete Athlete** — alle 4 Layer ≥65%
+- 🧱 **Wrecking Ball** — OTIP ≥85% + Burst ≥65%
+- ⚡ **Speed Demon** — Speed ≥85%
+- 💪 **Work Horse** — BIP ≥85% + OTIP ≥65%
+- 🚀 **Raw Athlete** — Burst ≥85% + Speed ≥65%
+- 👀 **Emerging Talent** — mind. 1 Layer ≥75%
+
+**IFI-Kontext (bei Emerging & Raw):**
+- 🚀 Raw Athlete + Taktik = Raw Athlete + IFI Elite/Strong
+- 👀 Emerging + Taktik = Emerging + IFI Elite/Strong
+- 💡 Taktiker = Kein Physical Score + IFI Elite/Strong
+- ⚡ Speed Only / Speed + Taktik = nur Speed-Daten verfügbar
 
 **Rollenprofile:** Clustering auf allen Ligen (≥500 min) — BL als Qualitätsreferenz
         """)

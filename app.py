@@ -183,7 +183,8 @@ if not check_password():
 # ── DATA ──────────────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/btl_scouting_app_data.csv")
+    df = pd.read_csv("data/btl_scouting_app_data.csv", 
+                     on_bad_lines='skip', low_memory=False)
     df.columns = [c.lower().strip() for c in df.columns]
     # All columns are now lowercase - Pct_Score → pct_score, SC_PSV-99 → sc_psv-99
     if "age" in df.columns:
@@ -258,7 +259,41 @@ LAYER_DESC_BTL = {
     "bip":   "Active Game Intensity",
 }
 
-# Metriken pro Layer (Spaltenname → Label, höher=besser)
+# ── Top 5 Mediane (aus IT-Datensatz 2025/26) ─────────────────────────────────
+TOP5_MEDIANS = {
+    "Winger": {
+        "speed": {"sc_psv-99": 29.545, "sc_sprint distance p60bip": 278.39, "sc_hsr distance p60bip": 756.31},
+        "burst": {"sc_top 3 time to sprint": 1.30, "sc_top 3 time to hsr": 0.67, "sc_explosive acceleration to sprint count p60bip": 1.53},
+        "otip":  {"sc_sprint distance otip p30otip": 109.59, "sc_hsr distance otip p30otip": 367.05, "sc_explosive acceleration to sprint count otip p30otip": 0.48},
+        "bip":   {"sc_sprint distance p60bip": 278.39, "sc_hsr distance p60bip": 756.31, "sc_explosive acceleration to sprint count p60bip": 1.53},
+    },
+    "Striker": {
+        "speed": {"sc_psv-99": 29.275, "sc_sprint distance p60bip": 241.19, "sc_hsr distance p60bip": 682.93},
+        "burst": {"sc_top 3 time to sprint": 1.33, "sc_top 3 time to hsr": 0.67, "sc_explosive acceleration to sprint count p60bip": 1.31},
+        "otip":  {"sc_sprint distance otip p30otip": 89.34, "sc_hsr distance otip p30otip": 318.09, "sc_explosive acceleration to sprint count otip p30otip": 0.37},
+        "bip":   {"sc_sprint distance p60bip": 241.19, "sc_hsr distance p60bip": 682.93, "sc_explosive acceleration to sprint count p60bip": 1.31},
+    },
+    "Midfielder": {
+        "speed": {"sc_psv-99": 27.90, "sc_sprint distance p60bip": 173.47, "sc_hsr distance p60bip": 716.82},
+        "burst": {"sc_top 3 time to sprint": 1.42, "sc_top 3 time to hsr": 0.70, "sc_explosive acceleration to sprint count p60bip": 0.40},
+        "otip":  {"sc_sprint distance otip p30otip": 93.88, "sc_hsr distance otip p30otip": 409.66, "sc_explosive acceleration to sprint count otip p30otip": 0.18},
+        "bip":   {"sc_sprint distance p60bip": 173.47, "sc_hsr distance p60bip": 716.82, "sc_explosive acceleration to sprint count p60bip": 0.40},
+    },
+    "Fullback": {
+        "speed": {"sc_psv-99": 29.68, "sc_sprint distance p60bip": 268.17, "sc_hsr distance p60bip": 693.15},
+        "burst": {"sc_top 3 time to sprint": 1.28, "sc_top 3 time to hsr": 0.65, "sc_explosive acceleration to sprint count p60bip": 1.625},
+        "otip":  {"sc_sprint distance otip p30otip": 133.52, "sc_hsr distance otip p30otip": 391.57, "sc_explosive acceleration to sprint count otip p30otip": 0.84},
+        "bip":   {"sc_sprint distance p60bip": 268.17, "sc_hsr distance p60bip": 693.15, "sc_explosive acceleration to sprint count p60bip": 1.625},
+    },
+    "Central Defender": {
+        "speed": {"sc_psv-99": 28.885, "sc_sprint distance p60bip": 134.72, "sc_hsr distance p60bip": 427.34},
+        "burst": {"sc_top 3 time to sprint": 1.35, "sc_top 3 time to hsr": 0.69, "sc_explosive acceleration to sprint count p60bip": 0.67},
+        "otip":  {"sc_sprint distance otip p30otip": 100.64, "sc_hsr distance otip p30otip": 300.05, "sc_explosive acceleration to sprint count otip p30otip": 0.535},
+        "bip":   {"sc_sprint distance p60bip": 134.72, "sc_hsr distance p60bip": 427.34, "sc_explosive acceleration to sprint count p60bip": 0.67},
+    },
+}
+
+# Metriken pro Layer (BTL Spaltenname → Label, höher=besser)
 LAYER_METRICS_BTL = {
     "speed": [
         ("pct_speed_global",      "PSV-99 (DACH%)",         True),
@@ -299,21 +334,35 @@ PROFILES_BTL = [
     ("—",                    lambda s,b,o,p: True),
 ]
 
-def get_layer_scores_btl(row):
-    """Get 4 layer scores from global percentile columns."""
-    s = row.get("pct_speed_global", np.nan)
-    b = row.get("pct_burst_global", np.nan)
-    o = row.get("pct_otip_global",  np.nan)
-    p = row.get("pct_bip_global",   np.nan)
-    try: s = float(s)
-    except: s = np.nan
-    try: b = float(b)
-    except: b = np.nan
-    try: o = float(o)
-    except: o = np.nan
-    try: p = float(p)
-    except: p = np.nan
-    return s, b, o, p
+def get_layer_scores_btl(row, benchmark="dach"):
+    """Get 4 layer scores.
+    benchmark='dach' uses global DACH percentiles from CSV.
+    benchmark='top5' calculates percentile vs Top5 medians."""
+    if benchmark == "dach":
+        def _get(col):
+            try: return float(row.get(col, np.nan))
+            except: return np.nan
+        return _get("pct_speed_global"), _get("pct_burst_global"),                _get("pct_otip_global"),  _get("pct_bip_global")
+    else:
+        # vs Top 5: compare raw metrics to Top5 medians
+        pos = row.get("position", "Winger")
+        t5m = TOP5_MEDIANS.get(pos, TOP5_MEDIANS["Winger"])
+        scores = {}
+        for layer, metrics in t5m.items():
+            pcts = []
+            for col, median in metrics.items():
+                val = row.get(col, np.nan)
+                try: val = float(val)
+                except: val = np.nan
+                if pd.isna(val) or median == 0: continue
+                # Time metrics: lower=better
+                if "time" in col.lower():
+                    pct = (1 - val/median) * 50 + 50  # 50 = on median
+                else:
+                    pct = (val/median) * 50  # 50 = on median
+                pcts.append(min(max(pct, 0), 100))
+            scores[layer] = round(np.mean(pcts), 1) if pcts else np.nan
+        return scores.get("speed",np.nan), scores.get("burst",np.nan),                scores.get("otip",np.nan),  scores.get("bip",np.nan)
 
 def get_btl_profile(s, b, o, p):
     for label, fn in PROFILES_BTL:
@@ -436,10 +485,10 @@ def render_physical_bars(row):
     tier_l, tier_c = physical_tier(ps, "")
 
     comps = [
-        ("⚡ Top-Speed",         row.get("pct_speed", 0),  ORG),
-        ("🏃 Off-Ball Intensität", row.get("pct_otip",  0), "#E65100"),
-        ("💥 Lauf-Intensität",    row.get("pct_bip",   0), "#1565C0"),
-        ("🚀 Explosivität",       row.get("pct_burst", 0), "#2E7D32"),
+        ("⚡ Top-Speed",         row.get("pct_speed", 0),  LAYER_COLORS_BTL["speed"]),
+        ("🏃 Off-Ball Intensität", row.get("pct_otip",  0), LAYER_COLORS_BTL["otip"]),
+        ("💥 Lauf-Intensität",    row.get("pct_bip",   0), LAYER_COLORS_BTL["bip"]),
+        ("🚀 Explosivität",       row.get("pct_burst", 0), LAYER_COLORS_BTL["burst"]),
     ]
     html = ""
     for name, val, color in comps:
@@ -478,20 +527,7 @@ def render_physical_bars(row):
     pos_row    = row.get("position", "")
     bl_ref     = BL_MEDIANS.get(pos_row, 60.0)
 
-    bm_html = ""
-    if pd.notna(ps_idx) and not (isinstance(ps_idx, float) and np.isnan(ps_idx)) and float(ps_idx) != 0:
-        ps_val = float(ps_idx)
-        if ps_val < 0:
-            # Speed only
-            speed_pct = abs(ps_val)
-            bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed:</span><span class="bm-val">{speed_pct:.1f}%</span><span style="margin-left:8px;font-size:11px;color:#F0A500;">nur Speed — kein BL-Vergleich</span></div>'
-        else:
-            lc   = label_color(bl_lbl)
-            diff = ps_val - bl_ref
-            sign = "pos" if diff >= 0 else "neg"
-            bm_html += f'<div class="bm-row"><span class="bm-label">⚡ Speed+Burst:</span><span class="bm-val">{ps_val:.1f}</span><span class="bm-delta-{sign}">{diff:+.1f} vs BL-Median ({bl_ref:.0f})</span><span style="margin-left:8px;font-size:12px;color:{lc};font-weight:600;">{bl_lbl}</span></div>'  
-    if pd.notna(ps_idx_3l) and not (isinstance(ps_idx_3l, float) and np.isnan(float(ps_idx_3l) if pd.notna(ps_idx_3l) else float("nan"))) and float(ps_idx_3l) > 0:
-        bm_html += f'<div class="bm-row"><span class="bm-label">🏃 Laufintensität:</span><span class="bm-val">{float(ps_idx_3l):.1f}</span><span style="margin-left:10px;font-size:11px;color:#888;">DACH-Perzentil</span></div>'
+    bm_html = ""  # removed - replaced by 4 Layer Cards above
 
     html += f"""
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #3A3A3A;">
@@ -590,9 +626,9 @@ def make_html_report(row, position):
     phys_rows = ""
     for nm, val, color in [
         ("⚡ Top-Speed",          row.get("pct_speed", 0), "#E8560A"),
-        ("🏃 Off-Ball Intensität", row.get("pct_otip",  0), "#E65100"),
-        ("💥 Lauf-Intensität",    row.get("pct_bip",   0), "#1565C0"),
-        ("🚀 Explosivität",       row.get("pct_burst", 0), "#2E7D32"),
+        ("🏃 Off-Ball Intensität", row.get("pct_otip",  0), LAYER_COLORS_BTL["otip"]),
+        ("💥 Lauf-Intensität",    row.get("pct_bip",   0), LAYER_COLORS_BTL["bip"]),
+        ("🚀 Explosivität",       row.get("pct_burst", 0), LAYER_COLORS_BTL["burst"]),
     ]:
         try:
             v = float(val or 0)
@@ -1067,7 +1103,9 @@ with tab1:
                     st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
 
                     # ── 4 LAYER CARDS (IT-style) ───────────────────────────
-                    sl, bl, ol, pl = get_layer_scores_btl(row)
+                    _bench = st.session_state.get("bench_mode", "dach")
+                    sl, bl, ol, pl = get_layer_scores_btl(row, _bench)
+                    _bench_lbl = "vs Top 5" if _bench == "top5" else "DACH%"
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Physical Layer Profile (DACH%)</div>', unsafe_allow_html=True)
                     lc1,lc2,lc3,lc4 = st.columns(4)
@@ -1085,7 +1123,7 @@ with tab1:
                                     text-transform:uppercase;">{LAYER_LABELS_BTL[layer]}</div>
                                 <div style="font-size:28px;font-weight:800;color:{clr};
                                     line-height:1.1;">{sc_disp_l}</div>
-                                <div style="font-size:9px;color:#666;">{LAYER_DESC_BTL[layer]}</div>
+                                <div style="font-size:9px;color:#666;">{LAYER_DESC_BTL[layer]} · {_bench_lbl}</div>
                                 <div style="font-size:11px;font-weight:700;color:{lbl_c};
                                     margin-top:4px;">{lbl_l}</div>
                             </div>
@@ -1508,4 +1546,11 @@ Peer-Perzentil der IFI-Attribute pro Position + Liga.
         """)
 
     st.markdown("---")
+    st.markdown('<div class="sec" style="margin-top:12px;font-size:9px;">Physical Benchmark</div>',
+                unsafe_allow_html=True)
+    bench_sel = st.radio("", ["DACH (Peer)", "Top 5 Ligen"],
+        key="bench_mode_radio", horizontal=True,
+        label_visibility="collapsed")
+    st.session_state["bench_mode"] = "top5" if "Top 5" in bench_sel else "dach"
+
     st.markdown(f"<div style='text-align:center;color:#666;font-size:11px;'>Between The Lines Scouting Intelligence · {datetime.now().strftime('%Y')}</div>", unsafe_allow_html=True)

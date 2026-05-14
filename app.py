@@ -675,20 +675,9 @@ def make_html_report(row, position):
         </tr>"""
 
 
-    # Physical score display
-    ps_lbl   = "⚡ Speed (DACH%)" if speed_only else "⚡ Speed+Burst (DACH%)"
-    ps_disp  = f"{ps_abs:.1f}"
-    # BL Median row
-    if not speed_only and ps_abs > 0 and diff_bl is not None:
-        lc_bl = {"🔥 Top-Athlet":"#E8560A","✅ BL-Niveau":"#27AE60",
-                  "🟡 Nah dran":"#F0A500","⚫ Darunter":"#888"}.get(bl_lbl,"#888")
-        sign_str = f"+{diff_bl:.1f}" if diff_bl >= 0 else f"{diff_bl:.1f}"
-        bl_row = f'<div style="margin:6px 0;font-size:12px;">⚡ Speed+Burst: <b>{ps_abs:.1f}</b> <span style="color:{"#27AE60" if diff_bl>=0 else "#E74C3C"};">{sign_str} vs BL-Median ({bl_ref:.0f})</span> <span style="color:{lc_bl};font-weight:700;">{bl_lbl}</span></div>'
-    elif speed_only:
-        bl_row = f'<div style="margin:6px 0;font-size:12px;">⚡ Speed: <b>{ps_abs:.1f}%</b> <span style="color:#F0A500;">nur Speed — kein BL-Vergleich</span></div>'
-    else:
-        bl_row = ""
-    lauf_row = f'<div style="margin:6px 0;font-size:12px;">🏃 Laufintensität: <b>{ps_3l:.1f}</b> <span style="color:#888;">DACH-Perzentil</span></div>' if ps_3l > 0 else ""
+    # Physical score display (kept for backward compat)
+    ps_lbl = "⚡ Speed+Burst (DACH%)"
+    ps_disp = f"{ps_abs:.1f}"
 
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Scouting Report – {row.get('name','—')}</title>
@@ -1115,30 +1104,28 @@ with tab1:
                     _bench_lbl = "vs Top 5" if _bench == "top5" else "DACH%"
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Physical Layer Profile (DACH%)</div>', unsafe_allow_html=True)
-                    lc1,lc2,lc3,lc4 = st.columns(4)
-                    for lcol, layer, score in zip([lc1,lc2,lc3,lc4],
-                            ["speed","burst","otip","bip"],[sl,bl,ol,pl]):
-                        with lcol:
-                            clr  = LAYER_COLORS_BTL[layer]
-                            lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
-                            sc_disp_l = f"{int(round(score))}" if pd.notna(score) else "—"
-                            st.markdown(f"""
-                            <div style="background:#1C1C1C;border:1px solid #2A2A2A;
-                                border-top:4px solid {clr};border-radius:6px;
-                                padding:18px 12px;text-align:center;margin-bottom:8px;">
-                                <div style="font-size:10px;color:#888;letter-spacing:0.15em;
-                                    text-transform:uppercase;font-weight:600;margin-bottom:6px;">
-                                    {LAYER_LABELS_BTL[layer]}</div>
-                                <div style="font-size:48px;font-weight:800;color:{clr};
-                                    line-height:1;">{sc_disp_l}</div>
-                                <div style="font-size:10px;color:#666;margin-top:4px;">
-                                    {LAYER_DESC_BTL[layer]}</div>
-                                <div style="font-size:10px;color:#555;margin-top:2px;">
-                                    {_bench_lbl}</div>
-                                <div style="font-size:13px;font-weight:700;color:{lbl_c};
-                                    margin-top:8px;">{lbl_l}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                    # Render all 4 layer cards as single HTML row
+                    cards_html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">' 
+                    for layer, score in zip(["speed","burst","otip","bip"],[sl,bl,ol,pl]):
+                        clr  = LAYER_COLORS_BTL[layer]
+                        lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
+                        sc_disp_l = f"{int(round(score))}" if pd.notna(score) else "—"
+                        cards_html += f'''<div style="background:#1C1C1C;border:1px solid #2A2A2A;
+                            border-top:4px solid {clr};border-radius:6px;
+                            padding:16px 8px;text-align:center;">
+                            <div style="font-size:10px;color:#888;letter-spacing:0.12em;
+                                text-transform:uppercase;font-weight:600;margin-bottom:4px;">
+                                {LAYER_LABELS_BTL[layer]}</div>
+                            <div style="font-size:42px;font-weight:800;color:{clr};
+                                line-height:1.05;">{sc_disp_l}</div>
+                            <div style="font-size:9px;color:#666;margin-top:3px;">
+                                {LAYER_DESC_BTL[layer]}</div>
+                            <div style="font-size:9px;color:#555;margin-top:1px;">{_bench_lbl}</div>
+                            <div style="font-size:12px;font-weight:700;color:{lbl_c};
+                                margin-top:6px;">{lbl_l}</div>
+                        </div>'''
+                    cards_html += '</div>'
+                    st.markdown(cards_html, unsafe_allow_html=True)
                 with d2:
                     pt_l, pt_c = physical_tier(row.get("physical score", 0) or 0, row.get("position",""))
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:14px;color:{pt_c};">{pt_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)

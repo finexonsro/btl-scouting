@@ -183,9 +183,11 @@ if not check_password():
 # ── DATA ──────────────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/btl_scouting_app_data.csv", 
-                     on_bad_lines='skip', low_memory=False)
-    df.columns = [c.lower().strip() for c in df.columns]
+    df = pd.read_csv("data/btl_scouting_app_data.csv",
+                     on_bad_lines='skip', low_memory=False,
+                     quotechar='"', encoding='utf-8')
+    # Strip quotes and normalize column names
+    df.columns = [c.lower().strip().strip('"').strip("'") for c in df.columns]
     # All columns are now lowercase - Pct_Score → pct_score, SC_PSV-99 → sc_psv-99
     if "age" in df.columns:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")

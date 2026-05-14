@@ -741,7 +741,7 @@ for col, (val, lbl) in zip(kpi_cols, kpis):
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["📋 Spieler-Liste","🏟️ Team-Suche","📊 Scatter-Plot","📖 Info"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Spieler-Liste","🏟️ Team-Suche","🔍 Market Screener","📊 Scatter-Plot","📖 Info"])
 
 # ── TAB 1: SPIELER-LISTE ──────────────────────────────────────────────────────
 with tab1:
@@ -1071,7 +1071,196 @@ with tab2:
         st.markdown('<div style="color:#888;font-size:13px;">Vereinsnamen eingeben um alle Spieler dieses Teams anzuzeigen.</div>', unsafe_allow_html=True)
 
 # ── TAB 3: SCATTER ────────────────────────────────────────────────────────────
+# ── TAB 3: MARKET SCREENER ───────────────────────────────────────────────────
 with tab3:
+    # Position-specific key layers (belgisches Modell)
+    POS_KEY_LAYERS = {
+        "Winger":           {"primary": "pct_speed", "secondary": "pct_burst",
+                             "primary_lbl": "⚡ Top-Speed%", "secondary_lbl": "🚀 Explosivität%"},
+        "Striker":          {"primary": "pct_burst", "secondary": "pct_bip",
+                             "primary_lbl": "🚀 Explosivität%", "secondary_lbl": "💥 Lauf-BIP%"},
+        "Midfielder":       {"primary": "pct_otip",  "secondary": "pct_bip",
+                             "primary_lbl": "🏃 Def.Intensität%", "secondary_lbl": "💥 Lauf-BIP%"},
+        "Fullback":         {"primary": "pct_speed", "secondary": "pct_otip",
+                             "primary_lbl": "⚡ Top-Speed%", "secondary_lbl": "🏃 Def.Intensität%"},
+        "Central Defender": {"primary": "pct_otip",  "secondary": "pct_burst",
+                             "primary_lbl": "🏃 Def.Intensität%", "secondary_lbl": "🚀 Explosivität%"},
+    }
+
+    SCREENER_PROFILES = {
+        "⭐ Top Player":  {"desc": "Physisch stark (≥70%) + IFI stark (≥65%)", "phys_min": 70, "ifi_min": 65, "max_age": 99},
+        "🌟 Top Talent":  {"desc": "≤ 20 Jahre, physisch skalierbar (≥60%)",   "phys_min": 60, "ifi_min": 50, "max_age": 20},
+        "🚀 Rising Star": {"desc": "≤ 22 Jahre, physischer Outlier (≥65%)",    "phys_min": 65, "ifi_min": 50, "max_age": 22},
+        "💡 Hidden Gem":  {"desc": "Physischer Outlier in kleinerem Markt",    "phys_min": 70, "ifi_min": 55, "max_age": 99},
+        "🎯 Custom":      {"desc": "Eigene Schwellen setzen",                  "phys_min": 0,  "ifi_min": 0,  "max_age": 99},
+    }
+
+    HIDDEN_GEM_LIGEN = ["RL Bayern","RL Nord","RL Südwest","RL West",
+                        "AUT 2.L","SUI CL","U19 BL","U17 BL","3.Liga DE"]
+
+    st.markdown(f'<div class="sec">🔍 Market Screener — Beste Spieler finden</div>', unsafe_allow_html=True)
+
+    sc1, sc2, sc3 = st.columns([1,1,1])
+    with sc1:
+        screener_pos = st.selectbox("Position", list(POS_KEY_LAYERS.keys()),
+            format_func=lambda x: {"Winger":"Außenstürmer","Striker":"Stürmer",
+                "Midfielder":"Mittelfeld","Fullback":"Außenverteidiger",
+                "Central Defender":"Innenverteidiger"}.get(x,x), key="sc_pos")
+    with sc2:
+        screener_profile = st.radio("Profil", list(SCREENER_PROFILES.keys()), key="sc_profile")
+    with sc3:
+        all_ligen_sc = ["Alle"] + sorted(df_raw["liga"].dropna().unique().tolist())
+        screener_liga = st.selectbox("Liga", all_ligen_sc, key="sc_liga")
+        screener_min_min = st.slider("Mindestminuten", 0, 2000, 300, 50, key="sc_min")
+
+    prof = SCREENER_PROFILES[screener_profile]
+    st.markdown(f'<div style="font-size:11px;color:#888;margin:2px 0 10px;">{prof["desc"]}</div>', unsafe_allow_html=True)
+
+    # Custom sliders
+    if screener_profile == "🎯 Custom":
+        cc1,cc2,cc3 = st.columns(3)
+        with cc1: custom_phys = st.slider("Key Layer min%", 0, 95, 65, 5, key="cc_phys")
+        with cc2: custom_ifi  = st.slider("IFI min%", 0, 95, 50, 5, key="cc_ifi")
+        with cc3: custom_age  = st.slider("Max. Alter", 15, 40, 30, 1, key="cc_age")
+        prof = {"phys_min": custom_phys, "ifi_min": custom_ifi, "max_age": custom_age}
+
+    # ── FILTER ────────────────────────────────────────────────────────────────
+    sc_df = df_raw[df_raw["position"] == screener_pos].copy()
+    if screener_liga != "Alle":
+        sc_df = sc_df[sc_df["liga"] == screener_liga]
+    elif screener_profile == "💡 Hidden Gem":
+        sc_df = sc_df[sc_df["liga"].isin(HIDDEN_GEM_LIGEN)]
+    sc_df = sc_df[sc_df["minutes"].fillna(0) >= screener_min_min]
+    if prof["max_age"] < 99:
+        sc_df = sc_df[sc_df["age"].fillna(99) <= prof["max_age"]]
+
+    # Recalc IFI
+    sc_df = recalc(sc_df, {a: 1 for a in POS_CONFIG.get(screener_pos, {}).get("attrs", [])}, screener_pos)
+
+    # Key layer scores
+    key_layers = POS_KEY_LAYERS[screener_pos]
+    primary_col   = key_layers["primary"]
+    secondary_col = key_layers["secondary"]
+    primary_lbl   = key_layers["primary_lbl"]
+    secondary_lbl = key_layers["secondary_lbl"]
+
+    mask_phys = sc_df[primary_col].fillna(0)   >= prof["phys_min"]
+    mask_ifi  = sc_df["pct_score"].fillna(0)   >= prof["ifi_min"]
+    sc_filtered = sc_df[mask_phys & mask_ifi].copy()
+    sc_filtered = sc_filtered.sort_values(primary_col, ascending=False)
+
+    st.markdown(f'<div style="font-size:12px;color:{ORG};font-weight:600;margin-bottom:8px;">        {len(sc_filtered)} Spieler gefunden</div>', unsafe_allow_html=True)
+
+    if not sc_filtered.empty:
+        disp_rows = []
+        for _, row in sc_filtered.iterrows():
+            p1 = row.get(primary_col, np.nan)
+            p2 = row.get(secondary_col, np.nan)
+            ifi = row.get("pct_score", np.nan)
+            disp_rows.append({
+                "Spieler":      row.get("name","—"),
+                "Team":         row.get("team","—"),
+                "Liga":         row.get("liga","—"),
+                "Alter":        row.get("age","—"),
+                "Min":          int(row.get("minutes",0) or 0),
+                primary_lbl:   int(round(float(p1))) if pd.notna(p1) else None,
+                secondary_lbl: int(round(float(p2))) if pd.notna(p2) else None,
+                "IFI%":        int(round(float(ifi))) if pd.notna(ifi) else None,
+                "IFI Label":   row.get("ifi_label","—"),
+                "Spielertyp":  row.get("spielertyp","—"),
+            })
+
+        sc_disp = pd.DataFrame(disp_rows)
+
+        def bold_sc(v):
+            try:
+                f = float(v)
+                if f >= 85: return f"font-weight:700;color:{ORG}"
+                if f >= 65: return "font-weight:700"
+                return ""
+            except: return ""
+
+        score_cols_sc = [primary_lbl, secondary_lbl, "IFI%"]
+        styled_sc = sc_disp.style.map(bold_sc, subset=score_cols_sc)
+        event_sc  = st.dataframe(styled_sc, use_container_width=True, height=400,
+                                 on_select="rerun", selection_mode="multi-row")
+
+        # ── WATCHLIST ─────────────────────────────────────────────────────────
+        st.markdown('<div class="div" style="margin:12px 0 8px;"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sec">⭐ Watchlist</div>', unsafe_allow_html=True)
+
+        if "watchlist" not in st.session_state:
+            st.session_state["watchlist"] = []
+
+        wl1, wl2 = st.columns([3,1])
+        with wl1:
+            if event_sc and event_sc.selection and event_sc.selection.rows:
+                sel_names = [sc_disp.iloc[i]["Spieler"] for i in event_sc.selection.rows
+                             if i < len(sc_disp)]
+                if st.button(f"⭐ {len(sel_names)} Spieler zur Watchlist"):
+                    for nm in sel_names:
+                        match = sc_filtered[sc_filtered["name"] == nm]
+                        if not match.empty:
+                            entry = match.iloc[0].to_dict()
+                            entry["_profil"] = screener_profile
+                            if not any(w.get("name") == nm and
+                                       w.get("position") == screener_pos
+                                       for w in st.session_state["watchlist"]):
+                                st.session_state["watchlist"].append(entry)
+                    st.success(f"✅ {len(sel_names)} Spieler hinzugefügt")
+        with wl2:
+            if st.button("🗑️ Leeren"):
+                st.session_state["watchlist"] = []
+                st.rerun()
+
+        if st.session_state["watchlist"]:
+            wl = st.session_state["watchlist"]
+            st.markdown(f'<div style="font-size:11px;color:#888;margin-bottom:6px;">                {len(wl)} Spieler auf der Watchlist</div>', unsafe_allow_html=True)
+
+            wl_rows = []
+            for w in wl:
+                wl_rows.append({
+                    "Spieler":    w.get("name","—"),
+                    "Team":       w.get("team","—"),
+                    "Liga":       w.get("liga","—"),
+                    "Position":   w.get("position","—"),
+                    "Alter":      w.get("age","—"),
+                    "IFI%":       int(round(float(w["pct_score"]))) if pd.notna(w.get("pct_score")) else None,
+                    "Spielertyp": w.get("spielertyp","—"),
+                    "Profil":     w.get("_profil","—"),
+                })
+            wl_df = pd.DataFrame(wl_rows)
+            st.dataframe(wl_df, use_container_width=True, height=180)
+
+            exp1, exp2 = st.columns(2)
+            with exp1:
+                csv_exp = wl_df.to_csv(index=False).encode("utf-8")
+                st.download_button("📥 CSV Export",
+                    data=csv_exp,
+                    file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv")
+            with exp2:
+                if st.button("📄 HTML Reports generieren"):
+                    reports = []
+                    for w in wl:
+                        pos_w = w.get("position","Winger")
+                        try:
+                            row_w = pd.Series(w)
+                            html_w = make_html_report(row_w, pos_w)
+                            reports.append(html_w)
+                        except Exception as e:
+                            reports.append(f"<p>Fehler für {w.get('name','?')}: {e}</p>")
+                    if reports:
+                        combined = '<div style="page-break-after:always"></div>'.join(reports)
+                        st.download_button("⬇️ Download Watchlist Report",
+                            data=combined,
+                            file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.html",
+                            mime="text/html",
+                            key="wl_dl")
+    else:
+        st.info("Keine Spieler gefunden — Filter anpassen.")
+
+with tab4:
     num_cols = [c for c in [
         "sc_psv-99","physical score","physical score 3l","pct_score","pct_speed","pct_otip","pct_bip","pct_burst","age"
     ] if c in df_f.columns]

@@ -236,6 +236,100 @@ BL_THRESHOLDS = {
     "Central Defender": {"elite": 75, "bl": 55, "nah": 40, "darunter": 25},
 }
 
+# ── IT-STYLE LAYER FRAMEWORK ─────────────────────────────────────────────────
+LAYER_COLORS_BTL = {
+    "speed": "#E8560A",   # orange
+    "burst": "#CC2229",   # rot
+    "otip":  "#1B6CA8",   # blau
+    "bip":   "#27AE60",   # grün
+}
+
+LAYER_LABELS_BTL = {
+    "speed": "⚡ SPEED",
+    "burst": "🚀 BURST",
+    "otip":  "🏃 OTIP",
+    "bip":   "💥 BIP",
+}
+
+LAYER_DESC_BTL = {
+    "speed": "Athletic Ceiling",
+    "burst": "Explosive Activation",
+    "otip":  "Defensive Athleticism",
+    "bip":   "Active Game Intensity",
+}
+
+# Metriken pro Layer (Spaltenname → Label, höher=besser)
+LAYER_METRICS_BTL = {
+    "speed": [
+        ("pct_speed_global",      "PSV-99 (DACH%)",         True),
+        ("pct_sprintdist_global", "Sprint Dist P60BIP",      True),
+        ("pct_hsrdist_global",    "HSR Dist P60BIP",         True),
+    ],
+    "burst": [
+        ("pct_burst_global",      "Time to Sprint (DACH%)",  True),
+        ("pct_timetohsr_global",  "Time to HSR (DACH%)",     True),
+        ("pct_expaccbip_global",  "Exp Acc Sprint BIP",      True),
+    ],
+    "otip": [
+        ("pct_otip_global",       "OTIP Raw (DACH%)",        True),
+        ("pct_hsr dist otip_global","HSR Dist OTIP",         True),
+        ("pct_expaccotip_global", "Exp Acc Sprint OTIP",     True),
+    ],
+    "bip": [
+        ("pct_bip_global",        "BIP Raw (DACH%)",         True),
+        ("pct_expaccbip_global",  "Exp Acc Sprint BIP",      True),
+    ],
+}
+
+LEVEL_LABELS_BTL = [
+    (85, "🔥 Elite",       "#E8560A"),
+    (65, "✅ Stark",        "#27AE60"),
+    (45, "🟡 Durchschnitt","#F0F0F0"),
+    (25, "🔵 Entwicklung", "#1B6CA8"),
+    ( 0, "⚫ Darunter",    "#666"),
+]
+
+PROFILES_BTL = [
+    ("🔥 Complete Athlete",  lambda s,b,o,p: all(x>=65 for x in [s,b,o,p] if pd.notna(x))),
+    ("🧱 Wrecking Ball",     lambda s,b,o,p: pd.notna(o) and o>=80 and pd.notna(b) and b>=65),
+    ("⚡ Speed Demon",       lambda s,b,o,p: pd.notna(s) and s>=85),
+    ("💪 Work Horse",        lambda s,b,o,p: pd.notna(p) and p>=80 and pd.notna(o) and o>=65),
+    ("🚀 Raw Athlete",       lambda s,b,o,p: pd.notna(b) and b>=80 and pd.notna(s) and s>=65),
+    ("👀 Emerging Talent",   lambda s,b,o,p: max((x for x in [s,b,o,p] if pd.notna(x)), default=0)>=75),
+    ("—",                    lambda s,b,o,p: True),
+]
+
+def get_layer_scores_btl(row):
+    """Get 4 layer scores from global percentile columns."""
+    s = row.get("pct_speed_global", np.nan)
+    b = row.get("pct_burst_global", np.nan)
+    o = row.get("pct_otip_global",  np.nan)
+    p = row.get("pct_bip_global",   np.nan)
+    try: s = float(s)
+    except: s = np.nan
+    try: b = float(b)
+    except: b = np.nan
+    try: o = float(o)
+    except: o = np.nan
+    try: p = float(p)
+    except: p = np.nan
+    return s, b, o, p
+
+def get_btl_profile(s, b, o, p):
+    for label, fn in PROFILES_BTL:
+        try:
+            if fn(s, b, o, p): return label
+        except: continue
+    return "—"
+
+def get_btl_level(pct):
+    try:
+        v = float(pct)
+        for threshold, label, color in LEVEL_LABELS_BTL:
+            if v >= threshold: return label, color
+    except: pass
+    return "—", "#666"
+
 def physical_tier(ps, position=""):
     """ps: positive = Speed+Burst DACH%, negative = Speed only"""
     try:
@@ -971,6 +1065,31 @@ with tab1:
                     ps_3l    = float(row.get("physical score 3l", 0) or 0)
                     ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
                     st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
+
+                    # ── 4 LAYER CARDS (IT-style) ───────────────────────────
+                    sl, bl, ol, pl = get_layer_scores_btl(row)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Physical Layer Profile (DACH%)</div>', unsafe_allow_html=True)
+                    lc1,lc2,lc3,lc4 = st.columns(4)
+                    for lcol, layer, score in zip([lc1,lc2,lc3,lc4],
+                            ["speed","burst","otip","bip"],[sl,bl,ol,pl]):
+                        with lcol:
+                            clr  = LAYER_COLORS_BTL[layer]
+                            lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
+                            sc_disp_l = f"{score:.0f}" if pd.notna(score) else "—"
+                            st.markdown(f"""
+                            <div style="background:#1C1C1C;border:1px solid #2A2A2A;
+                                border-top:3px solid {clr};border-radius:4px;
+                                padding:10px;text-align:center;margin-bottom:6px;">
+                                <div style="font-size:9px;color:#666;letter-spacing:0.15em;
+                                    text-transform:uppercase;">{LAYER_LABELS_BTL[layer]}</div>
+                                <div style="font-size:28px;font-weight:800;color:{clr};
+                                    line-height:1.1;">{sc_disp_l}</div>
+                                <div style="font-size:9px;color:#666;">{LAYER_DESC_BTL[layer]}</div>
+                                <div style="font-size:11px;font-weight:700;color:{lbl_c};
+                                    margin-top:4px;">{lbl_l}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
                 with d2:
                     pt_l, pt_c = physical_tier(row.get("physical score", 0) or 0, row.get("position",""))
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:14px;color:{pt_c};">{pt_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
@@ -1075,15 +1194,15 @@ with tab2:
 with tab3:
     # Position-specific key layers (belgisches Modell)
     POS_KEY_LAYERS = {
-        "Winger":           {"primary": "pct_speed", "secondary": "pct_burst",
+        "Winger":           {"primary": "speed", "secondary": "burst",
                              "primary_lbl": "⚡ Top-Speed%", "secondary_lbl": "🚀 Explosivität%"},
-        "Striker":          {"primary": "pct_burst", "secondary": "pct_bip",
+        "Striker":          {"primary": "burst", "secondary": "bip",
                              "primary_lbl": "🚀 Explosivität%", "secondary_lbl": "💥 Lauf-BIP%"},
-        "Midfielder":       {"primary": "pct_otip",  "secondary": "pct_bip",
+        "Midfielder":       {"primary": "otip",  "secondary": "bip",
                              "primary_lbl": "🏃 Def.Intensität%", "secondary_lbl": "💥 Lauf-BIP%"},
-        "Fullback":         {"primary": "pct_speed", "secondary": "pct_otip",
+        "Fullback":         {"primary": "speed", "secondary": "otip",
                              "primary_lbl": "⚡ Top-Speed%", "secondary_lbl": "🏃 Def.Intensität%"},
-        "Central Defender": {"primary": "pct_otip",  "secondary": "pct_burst",
+        "Central Defender": {"primary": "otip",  "secondary": "burst",
                              "primary_lbl": "🏃 Def.Intensität%", "secondary_lbl": "🚀 Explosivität%"},
     }
 
@@ -1137,15 +1256,19 @@ with tab3:
     # Recalc IFI
     sc_df = recalc(sc_df, {a: 1 for a in POS_CONFIG.get(screener_pos, {}).get("attrs", [])}, screener_pos)
 
-    # Key layer scores
-    key_layers = POS_KEY_LAYERS[screener_pos]
-    primary_col   = key_layers["primary"]
-    secondary_col = key_layers["secondary"]
-    primary_lbl   = key_layers["primary_lbl"]
-    secondary_lbl = key_layers["secondary_lbl"]
+    # Get 4 layer scores from global percentiles
+    sc_df[["_s","_b","_o","_p"]] = sc_df.apply(
+        lambda r: pd.Series(get_layer_scores_btl(r)), axis=1)
 
-    mask_phys = sc_df[primary_col].fillna(0)   >= prof["phys_min"]
-    mask_ifi  = sc_df["pct_score"].fillna(0)   >= prof["ifi_min"]
+    # Key layer per position
+    key_layers   = POS_KEY_LAYERS[screener_pos]
+    primary_col  = {"speed":"_s","burst":"_b","otip":"_o","bip":"_p"}[key_layers["primary"]]
+    secondary_col= {"speed":"_s","burst":"_b","otip":"_o","bip":"_p"}[key_layers["secondary"]]
+    primary_lbl  = key_layers["primary_lbl"]
+    secondary_lbl= key_layers["secondary_lbl"]
+
+    mask_phys = sc_df[primary_col].fillna(0)  >= prof["phys_min"]
+    mask_ifi  = sc_df["pct_score"].fillna(0)  >= prof["ifi_min"]
     sc_filtered = sc_df[mask_phys & mask_ifi].copy()
     sc_filtered = sc_filtered.sort_values(primary_col, ascending=False)
 
@@ -1154,20 +1277,23 @@ with tab3:
     if not sc_filtered.empty:
         disp_rows = []
         for _, row in sc_filtered.iterrows():
-            p1 = row.get(primary_col, np.nan)
-            p2 = row.get(secondary_col, np.nan)
+            s,b,o,p = get_layer_scores_btl(row)
             ifi = row.get("pct_score", np.nan)
+            prof_lbl = get_btl_profile(s,b,o,p)
             disp_rows.append({
                 "Spieler":      row.get("name","—"),
                 "Team":         row.get("team","—"),
                 "Liga":         row.get("liga","—"),
-                "Alter":        row.get("age","—"),
+                "Alter":        int(row.get("age",0)) if pd.notna(row.get("age")) else None,
                 "Min":          int(row.get("minutes",0) or 0),
-                primary_lbl:   int(round(float(p1))) if pd.notna(p1) else None,
-                secondary_lbl: int(round(float(p2))) if pd.notna(p2) else None,
-                "IFI%":        int(round(float(ifi))) if pd.notna(ifi) else None,
-                "IFI Label":   row.get("ifi_label","—"),
-                "Spielertyp":  row.get("spielertyp","—"),
+                "⚡ Speed":     int(round(s)) if pd.notna(s) else None,
+                "🚀 Burst":     int(round(b)) if pd.notna(b) else None,
+                "🏃 OTIP":      int(round(o)) if pd.notna(o) else None,
+                "💥 BIP":       int(round(p)) if pd.notna(p) else None,
+                "IFI%":         int(round(float(ifi))) if pd.notna(ifi) else None,
+                "IFI Label":    row.get("ifi_label","—"),
+                "Profil":       prof_lbl,
+                "Spielertyp":   row.get("spielertyp","—"),
             })
 
         sc_disp = pd.DataFrame(disp_rows)
@@ -1180,7 +1306,8 @@ with tab3:
                 return ""
             except: return ""
 
-        score_cols_sc = [primary_lbl, secondary_lbl, "IFI%"]
+        score_cols_sc = ["⚡ Speed","🚀 Burst","🏃 OTIP","💥 BIP","IFI%"]
+        score_cols_sc = [c for c in score_cols_sc if c in sc_disp.columns]
         styled_sc = sc_disp.style.map(bold_sc, subset=score_cols_sc)
         event_sc  = st.dataframe(styled_sc, use_container_width=True, height=400,
                                  on_select="rerun", selection_mode="multi-row")
@@ -1203,8 +1330,7 @@ with tab3:
                         if not match.empty:
                             entry = match.iloc[0].to_dict()
                             entry["_profil"] = screener_profile
-                            if not any(w.get("name") == nm and
-                                       w.get("position") == screener_pos
+                            if not any(w.get("name") == nm and w.get("liga") == str(row.get("liga",""))
                                        for w in st.session_state["watchlist"]):
                                 st.session_state["watchlist"].append(entry)
                     st.success(f"✅ {len(sel_names)} Spieler hinzugefügt")

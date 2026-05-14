@@ -1000,6 +1000,17 @@ with tab1:
         event = st.dataframe(styled, use_container_width=True, height=440,
                              on_select="rerun", selection_mode="single-row")
 
+        # Physical Benchmark selector - bottom of list
+        bench_col1, bench_col2 = st.columns([2,3])
+        with bench_col1:
+            st.markdown(f'<div style="font-size:10px;color:#888;margin-top:6px;">⚡ Physical Benchmark:</div>',
+                        unsafe_allow_html=True)
+        with bench_col2:
+            bench_sel = st.radio("", ["DACH (Peer)", "Top 5 Ligen"],
+                key="bench_mode_radio", horizontal=True,
+                label_visibility="collapsed")
+            st.session_state["bench_mode"] = "top5" if "Top 5" in bench_sel else "dach"
+
         sel_name = None
         if event and event.selection and event.selection.rows:
             idx = event.selection.rows[0]
@@ -1098,34 +1109,11 @@ with tab1:
                     ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
                     st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
 
-                    # ── 4 LAYER CARDS (IT-style) ───────────────────────────
+                    # ── 4 LAYER CARDS (full width, same as breakdown) ─────
                     _bench = st.session_state.get("bench_mode", "dach")
                     sl, bl, ol, pl = get_layer_scores_btl(row, _bench)
                     _bench_lbl = "vs Top 5" if _bench == "top5" else "DACH%"
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Physical Layer Profile (DACH%)</div>', unsafe_allow_html=True)
-                    # Render all 4 layer cards as single HTML row
-                    cards_html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">' 
-                    for layer, score in zip(["speed","burst","otip","bip"],[sl,bl,ol,pl]):
-                        clr  = LAYER_COLORS_BTL[layer]
-                        lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
-                        sc_disp_l = f"{int(round(score))}" if pd.notna(score) else "—"
-                        cards_html += f'''<div style="background:#1C1C1C;border:1px solid #2A2A2A;
-                            border-top:4px solid {clr};border-radius:6px;
-                            padding:16px 8px;text-align:center;">
-                            <div style="font-size:10px;color:#888;letter-spacing:0.12em;
-                                text-transform:uppercase;font-weight:600;margin-bottom:4px;">
-                                {LAYER_LABELS_BTL[layer]}</div>
-                            <div style="font-size:42px;font-weight:800;color:{clr};
-                                line-height:1.05;">{sc_disp_l}</div>
-                            <div style="font-size:9px;color:#666;margin-top:3px;">
-                                {LAYER_DESC_BTL[layer]}</div>
-                            <div style="font-size:9px;color:#555;margin-top:1px;">{_bench_lbl}</div>
-                            <div style="font-size:12px;font-weight:700;color:{lbl_c};
-                                margin-top:6px;">{lbl_l}</div>
-                        </div>'''
-                    cards_html += '</div>'
-                    st.markdown(cards_html, unsafe_allow_html=True)
+
                 with d2:
                     pt_l, pt_c = physical_tier(row.get("physical score", 0) or 0, row.get("position",""))
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:14px;color:{pt_c};">{pt_l}</div><div class="lbl">Physical Tier</div></div>', unsafe_allow_html=True)
@@ -1134,8 +1122,27 @@ with tab1:
                 with d4:
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:16px;color:{ic};">{em}</div><div class="lbl">IFI Label</div></div>', unsafe_allow_html=True)
 
-                st.markdown("<br>", unsafe_allow_html=True)
+                # ── LAYER CARDS — full width ────────────────────────────────
+                _bench_title = f"Physical Layer Profile ({_bench_lbl})"
+                st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin:10px 0 6px;">{_bench_title}</div>', unsafe_allow_html=True)
+                cards_html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">'
+                for layer, score in zip(["speed","burst","otip","bip"],[sl,bl,ol,pl]):
+                    clr  = LAYER_COLORS_BTL[layer]
+                    lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
+                    sc_disp_l = f"{int(round(score))}" if pd.notna(score) else "—"
+                    cards_html += f'''<div style="background:#1C1C1C;border:1px solid #2A2A2A;
+                        border-top:4px solid {clr};border-radius:6px;padding:16px 8px;text-align:center;">
+                        <div style="font-size:10px;color:#888;letter-spacing:0.12em;
+                            text-transform:uppercase;font-weight:600;margin-bottom:4px;">
+                            {LAYER_LABELS_BTL[layer]}</div>
+                        <div style="font-size:42px;font-weight:800;color:{clr};line-height:1.05;">{sc_disp_l}</div>
+                        <div style="font-size:9px;color:#666;margin-top:3px;">{LAYER_DESC_BTL[layer]}</div>
+                        <div style="font-size:12px;font-weight:700;color:{lbl_c};margin-top:6px;">{lbl_l}</div>
+                    </div>'''
+                cards_html += '</div>'
+                st.markdown(cards_html, unsafe_allow_html=True)
 
+                # ── PHYSICAL BREAKDOWN (left) + RADAR (right) ──────────────
                 ch1, ch2 = st.columns([1,1])
                 with ch1:
                     if has_physical:
@@ -1565,13 +1572,5 @@ Peer-Perzentil der IFI-Attribute pro Position + Liga.
 
 **Rollenprofile:** Clustering auf allen Ligen (≥500 min) — BL als Qualitätsreferenz
         """)
-
-    st.markdown("---")
-    st.markdown('<div class="sec" style="margin-top:12px;font-size:9px;">Physical Benchmark</div>',
-                unsafe_allow_html=True)
-    bench_sel = st.radio("", ["DACH (Peer)", "Top 5 Ligen"],
-        key="bench_mode_radio", horizontal=True,
-        label_visibility="collapsed")
-    st.session_state["bench_mode"] = "top5" if "Top 5" in bench_sel else "dach"
 
     st.markdown(f"<div style='text-align:center;color:#666;font-size:11px;'>Between The Lines Scouting Intelligence · {datetime.now().strftime('%Y')}</div>", unsafe_allow_html=True)

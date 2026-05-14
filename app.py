@@ -530,6 +530,7 @@ def render_physical_bars(row):
     bl_ref     = BL_MEDIANS.get(pos_row, 60.0)
 
     bm_html = ""  # removed - replaced by 4 Layer Cards above
+    # Skip the bm section entirely
 
     html += f"""
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #3A3A3A;">
@@ -537,7 +538,6 @@ def render_physical_bars(row):
             PSV-99: <b style="color:#FFF;">{psv:.2f} km/h</b>
             <span style="color:{sf_c};margin-left:8px;font-weight:700;">{sf}</span>
         </div>
-        {bm_html}
     </div>"""
     return html
 
@@ -594,7 +594,7 @@ def make_radar(row, position):
         showlegend=True,
         legend=dict(bgcolor="#333", bordercolor="#444", borderwidth=1,
             font=dict(color="#888", size=10), orientation="h", y=-0.15, x=0.5, xanchor="center"),
-        margin=dict(l=60, r=60, t=50, b=60), height=400,
+        margin=dict(l=60, r=60, t=50, b=60), height=560,
         title=dict(text=f"IFI Radar · {em} · {row.get('pct_score',50):.0f}. Perzentil",
             font=dict(size=12, color=ic), x=0.5))
     return fig
@@ -607,23 +607,29 @@ def make_html_report(row, position):
     ifi_lbl   = row.get("ifi_label", "—")
     em, ic, _ = IFI_LABEL_STYLE.get(ifi_lbl, ("—","#888","#FFF"))
     ps        = float(row.get("physical score", 0) or 0)
-    ps_abs    = abs(ps)
-    speed_only = ps < 0
-    pt_l, tier_c = physical_tier(ps, "")
+    pt_l, tier_c = physical_tier(ps, position)
     final_tier_l = row.get("final_tier", pt_l) or pt_l
     t_bg      = TIER_COLORS.get(final_tier_l, TIER_COLORS.get(pt_l, "#333"))
     ifi_pct   = float(row.get("pct_score", 50) or 50)
     psv       = float(row.get("sc_psv-99", 0) or 0)
     sf        = row.get("speed_flag", "—")
-    bl_lbl    = row.get("bl level", "—")
-    ps_3l     = float(row.get("physical score 3l", 0) or 0)
-    # BL Median referenz
-    BL_MEDIANS = {"Winger": 58.7, "Striker": 56.5, "Midfielder": 58.7,
-                  "Fullback": 64.4, "Central Defender": 54.0}
-    bl_ref    = BL_MEDIANS.get(position, 60.0)
-    diff_bl   = ps_abs - bl_ref if ps_abs > 0 else None
     spielertyp = str(row.get("spielertyp","—")) if pd.notna(row.get("spielertyp")) else "—"
     age_disp  = str(int(row.get("age"))) if pd.notna(row.get("age")) else "—"
+    # 4 Layer scores
+    sl, bl_s, ol, pl = get_layer_scores_btl(row)
+    layer_cards_html = ""
+    for layer, score in [("speed",sl),("burst",bl_s),("otip",ol),("bip",pl)]:
+        clr = LAYER_COLORS_BTL[layer]
+        lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
+        sc_str = f"{int(round(score))}" if pd.notna(score) else "—"
+        layer_cards_html += f'''<div style="background:#1A1A1A;border:1px solid #2A2A2A;
+            border-top:3px solid {clr};border-radius:4px;padding:14px;text-align:center;">
+            <div style="font-size:9px;color:#666;letter-spacing:0.15em;
+                text-transform:uppercase;font-weight:600;">{LAYER_LABELS_BTL[layer]}</div>
+            <div style="font-size:36px;font-weight:800;color:{clr};line-height:1.1;">{sc_str}%</div>
+            <div style="font-size:9px;color:#666;">{LAYER_DESC_BTL[layer]}</div>
+            <div style="font-size:11px;font-weight:700;color:{lbl_c};margin-top:4px;">{lbl_l}</div>
+        </div>'''
 
     phys_rows = ""
     for nm, val, color in [
@@ -687,43 +693,42 @@ def make_html_report(row, position):
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Scouting Report – {row.get('name','—')}</title>
 <style>
-body{{font-family:Arial,sans-serif;margin:0;padding:24px;background:#fff;max-width:900px;margin:0 auto;}}
-.header{{background:{t_bg};color:#fff;padding:20px 24px;border-radius:10px;margin-bottom:16px;}}
+body{{font-family:Arial,sans-serif;margin:0;padding:24px;background:#111;color:#fff;
+    max-width:960px;margin:0 auto;}}
+.header{{background:{t_bg};color:#fff;padding:20px 24px;border-radius:8px;margin-bottom:16px;
+    display:flex;justify-content:space-between;align-items:center;}}
 .header h1{{margin:0;font-size:22px;font-weight:800;}}
-.header p{{margin:6px 0 0;opacity:0.85;font-size:13px;}}
+.header p{{margin:4px 0 0;opacity:0.8;font-size:12px;}}
 .badge{{background:rgba(255,255,255,0.2);display:inline-block;padding:4px 12px;
-    border-radius:20px;font-size:13px;font-weight:700;margin-top:10px;}}
-.cards{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}}
-.card{{border:1px solid #ddd;border-top:3px solid {ORG};border-radius:8px;padding:12px;text-align:center;}}
-.card .val{{font-size:18px;font-weight:700;color:#111;}}
-.card .lbl{{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;}}
-.section h2{{font-size:13px;color:{ORG};text-transform:uppercase;letter-spacing:0.1em;
-    border-bottom:1px solid #eee;padding-bottom:5px;margin:16px 0 8px;}}
-.phys-box{{background:#f9f9f9;border-radius:8px;padding:12px 16px;margin-bottom:12px;}}
+    border-radius:20px;font-size:12px;font-weight:700;}}
+.layer-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}}
+.ifi-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}}
+.card{{border:1px solid #2A2A2A;border-top:3px solid #E8560A;border-radius:6px;
+    padding:12px;text-align:center;background:#1A1A1A;}}
+.card .val{{font-size:18px;font-weight:700;}}
+.card .lbl{{font-size:9px;color:#888;text-transform:uppercase;
+    letter-spacing:0.08em;margin-top:4px;}}
+.section h2{{font-size:11px;color:#E8560A;text-transform:uppercase;letter-spacing:0.15em;
+    border-bottom:1px solid #2A2A2A;padding-bottom:5px;margin:16px 0 8px;}}
 table{{width:100%;border-collapse:collapse;}}
 </style></head><body>
 <div class="header">
-    <h1>{row.get('name','—')}</h1>
-    <p>{row.get('team','—')} · {row.get('liga','—')} · {pos_cfg.get('de',position)} · {spielertyp} · {age_disp} J. · {safe_val(row.get('minutes'),'—')} min</p>
+    <div>
+        <h1>{row.get('name','—')}</h1>
+        <p>{row.get('team','—')} · {row.get('liga','—')} · {pos_cfg.get('de',position)} · {spielertyp} · {age_disp} J. · {safe_val(row.get('minutes'),'—')} min</p>
+    </div>
     <div class="badge">{final_tier_l}</div>
 </div>
-<div class="cards">
-    <div class="card"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>
-    <div class="card"><div class="val" style="color:{tier_c};font-size:14px;">{pt_l}</div><div class="lbl">Physical Tier</div></div>
-    <div class="card"><div class="val">{ifi_pct:.0f}%</div><div class="lbl">IFI Perzentil</div></div>
-    <div class="card"><div class="val" style="color:{ic};">{em}</div><div class="lbl">IFI Label</div></div>
-</div>
-<div class="cards">
+<div class="section"><h2>⚡ Physical Layer Profile (DACH%)</h2></div>
+<div class="layer-grid">{layer_cards_html}</div>
+<div class="ifi-grid">
     <div class="card"><div class="val">{psv:.2f} km/h</div><div class="lbl">PSV-99</div></div>
     <div class="card"><div class="val">{sf}</div><div class="lbl">Speed Flag</div></div>
+    <div class="card"><div class="val" style="color:{ic};">{em}</div><div class="lbl">IFI Label · {ifi_pct:.0f}%</div></div>
 </div>
-<div class="phys-box">
-{bl_row}
-{lauf_row}
-</div>
-<div class="section"><h2>⚡ Physical Breakdown</h2><table>{phys_rows}</table></div>
+<div class="section"><h2>⚡ Physical Breakdown (Liga-Peer%)</h2><table>{phys_rows}</table></div>
 <div class="section"><h2>🎯 IFI Profil — {pos_cfg.get('de',position)}</h2><table>{ifi_rows}</table></div>
-<div style="margin-top:20px;font-size:11px;color:#aaa;text-align:right;">
+<div style="margin-top:20px;font-size:10px;color:#555;text-align:right;">
     Between The Lines Scouting Intelligence · {datetime.now().strftime('%d.%m.%Y')}
 </div>
 </body></html>"""
@@ -1116,18 +1121,22 @@ with tab1:
                         with lcol:
                             clr  = LAYER_COLORS_BTL[layer]
                             lbl_l, lbl_c = get_btl_level(score) if pd.notna(score) else ("—","#666")
-                            sc_disp_l = f"{score:.0f}" if pd.notna(score) else "—"
+                            sc_disp_l = f"{int(round(score))}" if pd.notna(score) else "—"
                             st.markdown(f"""
                             <div style="background:#1C1C1C;border:1px solid #2A2A2A;
-                                border-top:3px solid {clr};border-radius:4px;
-                                padding:10px;text-align:center;margin-bottom:6px;">
-                                <div style="font-size:9px;color:#666;letter-spacing:0.15em;
-                                    text-transform:uppercase;">{LAYER_LABELS_BTL[layer]}</div>
-                                <div style="font-size:28px;font-weight:800;color:{clr};
-                                    line-height:1.1;">{sc_disp_l}</div>
-                                <div style="font-size:9px;color:#666;">{LAYER_DESC_BTL[layer]} · {_bench_lbl}</div>
-                                <div style="font-size:11px;font-weight:700;color:{lbl_c};
-                                    margin-top:4px;">{lbl_l}</div>
+                                border-top:4px solid {clr};border-radius:6px;
+                                padding:18px 12px;text-align:center;margin-bottom:8px;">
+                                <div style="font-size:10px;color:#888;letter-spacing:0.15em;
+                                    text-transform:uppercase;font-weight:600;margin-bottom:6px;">
+                                    {LAYER_LABELS_BTL[layer]}</div>
+                                <div style="font-size:48px;font-weight:800;color:{clr};
+                                    line-height:1;">{sc_disp_l}</div>
+                                <div style="font-size:10px;color:#666;margin-top:4px;">
+                                    {LAYER_DESC_BTL[layer]}</div>
+                                <div style="font-size:10px;color:#555;margin-top:2px;">
+                                    {_bench_lbl}</div>
+                                <div style="font-size:13px;font-weight:700;color:{lbl_c};
+                                    margin-top:8px;">{lbl_l}</div>
                             </div>
                             """, unsafe_allow_html=True)
                 with d2:
@@ -1484,12 +1493,35 @@ with tab4:
             st.error(f"Fehler: {e}")
 
 # ── TAB 4: INFO ───────────────────────────────────────────────────────────────
-with tab4:
+with tab5:
     ca, cb_ = st.columns(2)
     with ca:
-        st.markdown("### Physical Score /100")
+        st.markdown("### Physical Layer Profile (DACH%)")
         st.markdown("""
-Peer-Perzentil pro Position + Liga — 100 = bester Spieler in seiner Liga und Position.
+**4 Layer — basierend auf belgischem Recruitment-Ansatz:**
+
+⚡ **SPEED** — Athletic Ceiling
+PSV-99, Sprint Distance, HSR Distance
+→ Wie schnell ist der Spieler maximal?
+
+🚀 **BURST** — Explosive Activation
+Time to Sprint, Time to HSR, Explosive Acc
+→ Wie schnell kommt er auf Höchstgeschwindigkeit?
+
+🏃 **OTIP** — Defensive Athleticism
+Sprint Dist OTIP, HSR Dist OTIP, Explosive Acc OTIP
+→ Wie intensiv ist er ohne Ball defensiv?
+
+💥 **BIP** — Active Game Intensity
+Sprint Dist BIP, HSR Dist BIP, Explosive Acc BIP
+→ Wie aktiv ist er physisch im Spielfluss?
+
+**Benchmark:**
+- DACH% = DACH-Perzentil pro Position (alle 13 Ligen)
+- Top 5 = Vergleich vs Top 5 Ligen Mediane (2025/26)
+
+**Level Labels:**
+🔥 Elite ≥85% | ✅ Stark ≥65% | 🟡 Durchschnitt ≥45% | 🔵 Entwicklung ≥25% | ⚫ Darunter <25%
 
 | Komponente | Winger | Striker | MF | FB | IV |
 |---|---|---|---|---|---|

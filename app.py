@@ -186,6 +186,31 @@ def load_data():
     # Strip quotes and normalize column names
     df.columns = [c.lower().strip().strip('"').strip("'") for c in df.columns]
     # All columns are now lowercase - Pct_Score → pct_score, SC_PSV-99 → sc_psv-99
+    # Alias mapping for BTL_merged format (no SC_ prefix) → app format
+    alias = {
+        "psv-99":                                                "sc_psv-99",
+        "speed flag":                                            "speed_flag",
+        "speed score":                                           "speed_score",
+        "hsr distance p60bip":                                   "sc_hsr distance p60bip",
+        "sprint distance p60bip":                                "sc_sprint distance p60bip",
+        "hi distance bip p60bip":                                "sc_hi distance bip p60bip",
+        "explosive acceleration to sprint count p60bip":         "sc_explosive acceleration to sprint count p60bip",
+        "bip score":                                             "bip_score",
+        "bip level":                                             "bip_level",
+        "hsr distance otip p30otip":                             "sc_hsr distance otip p30otip",
+        "sprint distance otip p30otip":                          "sc_sprint distance otip p30otip",
+        "hi distance otip p30otip":                              "sc_hi distance otip p30otip",
+        "explosive acceleration to sprint count otip p30otip":   "sc_explosive acceleration to sprint count otip p30otip",
+        "otip score":                                            "otip_score",
+        "otip pass":                                             "otip_pass",
+        "top 3 time to hsr":                                     "sc_top 3 time to hsr",
+        "top 3 time to hsr post-cod":                            "sc_top 3 time to hsr post-cod",
+        "top 3 time to sprint":                                  "sc_top 3 time to sprint",
+        "top 3 time to 505 around 90":                           "sc_top 3 time to 505 around 90",
+        "burst score":                                           "burst_score",
+        "physical score":                                        "physical score",
+    }
+    df = df.rename(columns={k: v for k, v in alias.items() if k in df.columns and v not in df.columns})
     if "age" in df.columns:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")
     df["markt"] = "DACH"

@@ -185,10 +185,15 @@ def load_data():
                      quotechar='"', encoding='utf-8')
     # Strip quotes and normalize column names
     df.columns = [c.lower().strip().strip('"').strip("'") for c in df.columns]
+    # Restore OBV_ columns to original case (OBV_Total Impact etc.) before lowercase wipes them
+    obv_restore = {c.lower(): c for c in df.columns if c.startswith("OBV_")}
     # All columns are now lowercase - Pct_Score → pct_score, SC_PSV-99 → sc_psv-99
     if "age" in df.columns:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")
     df["markt"] = "DACH"
+    # Re-apply OBV original case
+    if obv_restore:
+        df = df.rename(columns={k: v for k, v in obv_restore.items() if k in df.columns})
     has_sc  = df["sc_psv-99"].notna() if "sc_psv-99" in df.columns else pd.Series(False, index=df.index)
     has_ifi = df["pct_score"].notna()  if "pct_score"  in df.columns else pd.Series(False, index=df.index)
     df["datenquelle"] = "unbekannt"

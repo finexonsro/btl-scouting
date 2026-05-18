@@ -182,9 +182,11 @@ def recalc_ifi(df, weights, position):
             raw = sum(df[c].fillna(0)*(active.get(c.replace("Pct_",""),1)/tw) for c in pct_cols)
             df["IFI Percentile"] = raw.rank(pct=True).round(3)
         else:
-            df["IFI Percentile"] = df["IFI Percentile"] if "IFI Percentile" in df.columns else 0.5
-    elif "IFI Percentile" in df.columns:
-        pass
+            if "IFI Percentile" not in df.columns:
+                df["IFI Percentile"] = 0.5
+    else:
+        if "IFI Percentile" not in df.columns:
+            df["IFI Percentile"] = 0.5
 
     pct_labels = dict(elite=0.90, strong=0.75, average=0.50, below=0.25)
     df["IFI Label"] = df["IFI Percentile"].apply(lambda p:

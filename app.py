@@ -182,9 +182,11 @@ def recalc_ifi(df, weights, position):
             raw = sum(df[c].fillna(0)*(active.get(c.replace("Pct_",""),1)/tw) for c in pct_cols)
             df["IFI Percentile"] = raw.rank(pct=True).round(3)
         else:
-            df["IFI Percentile"] = df["IFI Percentile"] if "IFI Percentile" in df.columns else 0.5
-    elif "IFI Percentile" in df.columns:
-        pass
+            if "IFI Percentile" not in df.columns:
+                df["IFI Percentile"] = 0.5
+    else:
+        if "IFI Percentile" not in df.columns:
+            df["IFI Percentile"] = 0.5
 
     pct_labels = dict(elite=0.90, strong=0.75, average=0.50, below=0.25)
     df["IFI Label"] = df["IFI Percentile"].apply(lambda p:
@@ -513,7 +515,7 @@ for col,(val,lbl) in zip(kpi_cols,kpis):
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["📋 Spieler-Liste","🏟️ Team-Suche","📊 Scatter-Plot","📖 Info"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Spieler-Liste","🏟️ Team-Suche","🔮 OBV Profil","📊 OBV Screener","📖 Info"])
 
 # ── TAB 1: Spieler-Liste ──────────────────────────────────────────────────────
 with tab1:
@@ -772,43 +774,175 @@ with tab2:
     else:
         st.markdown('<div style="color:#888;font-size:13px;">Vereinsnamen eingeben um alle Spieler dieses Teams anzuzeigen — unabhängig von Position und Liga.</div>', unsafe_allow_html=True)
 
-# ── TAB 3: Scatter ───────────────────────────────────────────────────────────
+# ── TAB 3: OBV PROFIL ────────────────────────────────────────────────────────
 with tab3:
-    num_cols = [c for c in ["PSV-99","Physical Score","IFI Percentile","OTIP Score",
-        "BIP Score","Burst Score","Speed Score","Alter","Minuten","Δ PSV-99"] if c in df_f.columns]
-    c1,c2,c3,c4 = st.columns(4)
-    with c1: x = st.selectbox("X-Achse",num_cols,index=0)
-    with c2: y = st.selectbox("Y-Achse",num_cols,index=1)
-    with c3: sz= st.selectbox("Größe",["—"]+num_cols,index=0)
-    with c4: cb= st.selectbox("Farbe",["Final Tier","Speed Flag","IFI Label","Position","Markt","Liga"],index=0)
+    OBV_RATING_COLS = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting",
+                       "OBV_Final Ball","OBV_Carries","OBV_Buildup Pass",
+                       "OBV_Defense","OBV_Pen Area"]
+    has_obv = any(c in df.columns for c in OBV_RATING_COLS)
 
-    if not df_f.empty:
-        try:
-            pdf_p = df_f.dropna(subset=[x,y]).copy()
-            cm = TIER_COLORS if cb=="Final Tier" else(SPEED_COLORS if cb=="Speed Flag" else None)
-            sv = None
-            if sz!="—" and sz in pdf_p.columns:
-                s = pd.to_numeric(pdf_p[sz],errors="coerce").fillna(0)
-                sv = (((s-s.min())/(s.max()-s.min()+0.001))*20+6).tolist()
-            fig = px.scatter(pdf_p,x=x,y=y,color=cb,color_discrete_map=cm,
-                hover_name="Spieler",
-                hover_data={c:True for c in ["Verein","Liga","Position","Markt","Alter","PSV-99"] if c in pdf_p.columns},
-                size=sv,size_max=24,template="plotly_dark",height=520)
-            if x=="PSV-99": fig.add_vline(x=29.45,line_dash="dash",line_color=ORG,annotation_text="Benchmark Median",annotation_font_size=11)
-            if y=="PSV-99": fig.add_hline(y=29.45,line_dash="dash",line_color=ORG)
-            fig.update_layout(
-                paper_bgcolor=BG,plot_bgcolor="#333",font_family="DM Sans",font_color="#AAA",
-                xaxis=dict(gridcolor="#3A3A3A",zeroline=False),
-                yaxis=dict(gridcolor="#3A3A3A",zeroline=False),
-                legend=dict(bgcolor="#333",bordercolor="#444",borderwidth=1),
-                margin=dict(l=40,r=20,t=40,b=40))
-            fig.update_traces(marker=dict(line=dict(width=0.5,color=BG)))
-            st.plotly_chart(fig,use_container_width=True)
-        except Exception as e:
-            st.error(f"Fehler: {e}")
+    if not has_obv:
+        st.info("OBV-Daten noch nicht verfügbar. Bitte OBV-Merge durchführen und App-Daten aktualisieren.")
+    else:
+        # Spieler-Auswahl — verbunden mit Spieler-Liste via session_state
+        obv_players = df[df["OBV_Total Impact"].notna()]["Spieler"].unique().tolist()
+        current = st.session_state.get("obv_player", obv_players[0] if obv_players else "")
+        if current not in obv_players and obv_players:
+            current = obv_players[0]
 
-# ── TAB 4: Info ──────────────────────────────────────────────────────────────
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            sel_obv = st.selectbox("Spieler auswählen", obv_players,
+                index=obv_players.index(current) if current in obv_players else 0,
+                key="obv_sel")
+        st.session_state["obv_player"] = sel_obv
+
+        row = df[df["Spieler"] == sel_obv].iloc[0] if not df[df["Spieler"] == sel_obv].empty else None
+
+        if row is not None and pd.notna(row.get("OBV_Total Impact")):
+            total_impact  = int(row.get("OBV_Total Impact", 0) or 0)
+            impact_per90  = int(row.get("OBV_Impact per 90", 0) or 0)
+
+            st.markdown(f"""
+            <div style='background:{C1};border-radius:10px;padding:16px 20px;margin-bottom:16px;border-left:3px solid {ORG}'>
+                <span style='font-size:22px;font-weight:700;color:#FFF'>{sel_obv}</span>
+                <span style='color:#888;font-size:13px;margin-left:12px'>
+                    {row.get("Verein","—")} · {row.get("Liga","—")} · {row.get("Position","—")}
+                </span>
+            </div>""", unsafe_allow_html=True)
+
+            # Gauge helper
+            def obv_gauge(val, label, color):
+                pct = max(0, min(100, val))
+                fig = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=val,
+                    domain={"x":[0,1],"y":[0,1]},
+                    gauge={
+                        "axis":{"range":[0,100],"tickwidth":1,"tickcolor":"#666"},
+                        "bar":{"color":color,"thickness":0.25},
+                        "bgcolor":"#3A3A3A",
+                        "borderwidth":0,
+                        "steps":[
+                            {"range":[0,40],"color":"#2A2A2A"},
+                            {"range":[40,70],"color":"#2E2E2E"},
+                            {"range":[70,100],"color":"#333333"},
+                        ],
+                    },
+                    title={"text":label,"font":{"size":13,"color":"#AAA"}},
+                    number={"font":{"size":36,"color":"#FFF"}},
+                ))
+                fig.update_layout(
+                    height=200, margin=dict(l=20,r=20,t=40,b=10),
+                    paper_bgcolor=C1, font_family="DM Sans")
+                return fig
+
+            g1, g2 = st.columns(2)
+            with g1:
+                st.plotly_chart(obv_gauge(total_impact, "Total Impact", ORG), use_container_width=True)
+            with g2:
+                st.plotly_chart(obv_gauge(impact_per90, "Impact per 90", "#64B5F6"), use_container_width=True)
+
+            # Rating Components Bar Chart
+            st.markdown(f"<div style='color:{ORG};font-size:11px;font-weight:700;letter-spacing:0.12em;margin:12px 0 8px'>⚽ RATING COMPONENTS</div>", unsafe_allow_html=True)
+
+            comp_labels = ["Buildup Pass","Carries","Defense","Final Ball","Pen Area","Shooting"]
+            comp_values = [int(row.get(f"OBV_{c}", 0) or 0) for c in comp_labels]
+            comp_colors = [ORG if v >= 70 else "#64B5F6" if v >= 50 else "#888" for v in comp_values]
+
+            fig_bar = go.Figure(go.Bar(
+                x=comp_labels, y=comp_values,
+                marker_color=comp_colors,
+                text=comp_values, textposition="outside",
+                textfont=dict(color="#FFF", size=12),
+            ))
+            fig_bar.update_layout(
+                height=300, margin=dict(l=20,r=20,t=20,b=40),
+                paper_bgcolor=BG, plot_bgcolor="#333",
+                font_family="DM Sans", font_color="#AAA",
+                yaxis=dict(range=[0,110], gridcolor="#3A3A3A", zeroline=False),
+                xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info(f"Keine OBV-Daten für {sel_obv} verfügbar.")
+
+# ── TAB 4: OBV SCREENER ───────────────────────────────────────────────────────
 with tab4:
+    OBV_RATING_COLS = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting",
+                       "OBV_Final Ball","OBV_Carries","OBV_Buildup Pass",
+                       "OBV_Defense","OBV_Pen Area"]
+    has_obv = any(c in df.columns for c in OBV_RATING_COLS)
+
+    if not has_obv:
+        st.info("OBV-Daten noch nicht verfügbar.")
+    else:
+        df_obv = df[df["OBV_Total Impact"].notna()].copy()
+
+        # Filter
+        fc1, fc2, fc3, fc4 = st.columns(4)
+        with fc1:
+            pos_opts = ["Alle"] + sorted(df_obv["Position"].dropna().unique().tolist())
+            sel_pos_obv = st.selectbox("Position", pos_opts, key="obv_pos")
+        with fc2:
+            liga_opts = ["Alle"] + sorted(df_obv["Liga"].dropna().unique().tolist())
+            sel_liga_obv = st.selectbox("Liga", liga_opts, key="obv_liga")
+        with fc3:
+            markt_opts = ["Alle"] + sorted(df_obv["Markt"].dropna().unique().tolist())
+            sel_markt_obv = st.selectbox("Markt", markt_opts, key="obv_markt")
+        with fc4:
+            min_min_obv = st.slider("Min. Minuten", 0, 2000, 300, 50, key="obv_min")
+
+        # Apply filters
+        dof = df_obv.copy()
+        if sel_pos_obv  != "Alle": dof = dof[dof["Position"] == sel_pos_obv]
+        if sel_liga_obv != "Alle": dof = dof[dof["Liga"] == sel_liga_obv]
+        if sel_markt_obv!= "Alle": dof = dof[dof["Markt"] == sel_markt_obv]
+        if "Minuten" in dof.columns: dof = dof[dof["Minuten"] >= min_min_obv]
+
+        st.markdown(f"<span style='color:{ORG};font-weight:600'>{len(dof)} Spieler</span>", unsafe_allow_html=True)
+
+        # Scatter
+        obv_num_cols = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting",
+                        "OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area",
+                        "Physical Score","IFI Percentile","PSV-99","Alter"]
+        obv_num_cols = [c for c in obv_num_cols if c in dof.columns]
+
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1: ox = st.selectbox("X-Achse", obv_num_cols, index=0, key="obv_x")
+        with sc2: oy = st.selectbox("Y-Achse", obv_num_cols, index=1, key="obv_y")
+        with sc3: ocb = st.selectbox("Farbe", ["Position","Markt","Liga","Final Tier","IFI Label"], key="obv_cb")
+
+        if not dof.empty:
+            try:
+                pdf_obv = dof.dropna(subset=[ox, oy]).copy()
+                cm = TIER_COLORS if ocb == "Final Tier" else None
+                fig_sc = px.scatter(
+                    pdf_obv, x=ox, y=oy, color=ocb,
+                    color_discrete_map=cm,
+                    hover_name="Spieler",
+                    hover_data={c:True for c in ["Verein","Liga","Position","Alter",
+                                                  "OBV_Total Impact","OBV_Impact per 90"] if c in pdf_obv.columns},
+                    template="plotly_dark", height=500
+                )
+                fig_sc.update_layout(
+                    paper_bgcolor=BG, plot_bgcolor="#333",
+                    font_family="DM Sans", font_color="#AAA",
+                    xaxis=dict(gridcolor="#3A3A3A", zeroline=False),
+                    yaxis=dict(gridcolor="#3A3A3A", zeroline=False),
+                    legend=dict(bgcolor="#333", bordercolor="#444", borderwidth=1),
+                    margin=dict(l=40,r=20,t=40,b=40)
+                )
+                fig_sc.update_traces(marker=dict(size=8, line=dict(width=0.5, color=BG)))
+                # Klick → Spieler in OBV Profil laden
+                st.plotly_chart(fig_sc, use_container_width=True)
+                st.caption("💡 Spieler im OBV Profil Tab ansehen: Namen oben im Tab auswählen")
+            except Exception as e:
+                st.error(f"Fehler: {e}")
+
+# ── TAB 5: Info ──────────────────────────────────────────────────────────────
+with tab5:
     ca,cb_ = st.columns(2)
     with ca:
         st.markdown("### Physical Score /20")

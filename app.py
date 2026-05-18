@@ -1468,13 +1468,32 @@ with tab4:
                 <span style='color:#888;font-size:13px;margin-left:12px'>{row_o.get("team","—")} · {row_o.get("liga","—")} · {row_o.get("position","—")}</span>
             </div>""", unsafe_allow_html=True)
             def obv_gauge(val, label, color):
-                fig = go.Figure(go.Indicator(mode="gauge+number", value=val,
+                # Gauge arc: 20-80 range (matches data distribution)
+                # Number: show real value via annotation since Plotly clips values outside range
+                clamped = max(20, min(80, val))
+                fig = go.Figure(go.Indicator(
+                    mode="gauge",
+                    value=clamped,
                     domain={"x":[0,1],"y":[0,1]},
-                    gauge={"axis":{"range":[0,100]},"bar":{"color":color,"thickness":0.25},"bgcolor":"#3A3A3A","borderwidth":0,
-                           "steps":[{"range":[0,40],"color":"#2A2A2A"},{"range":[40,70],"color":"#2E2E2E"},{"range":[70,100],"color":"#333333"}]},
+                    gauge={
+                        "axis":{"range":[20,80],"tickmode":"array","tickvals":[20,40,60,80],"tickfont":{"color":"#666","size":10}},
+                        "bar":{"color":color,"thickness":0.3},
+                        "bgcolor":"#2A2A2A",
+                        "borderwidth":0,
+                        "steps":[{"range":[20,50],"color":"#2A2A2A"},{"range":[50,65],"color":"#2E2E2E"},{"range":[65,80],"color":"#333333"}],
+                    },
                     title={"text":label,"font":{"size":13,"color":"#AAA"}},
-                    number={"font":{"size":36,"color":"#FFF"}}))
-                fig.update_layout(height=200,margin=dict(l=20,r=20,t=40,b=10),paper_bgcolor=C1,font_family="DM Sans")
+                ))
+                fig.add_annotation(
+                    x=0.5, y=0.25, text=f"<b>{val}</b>",
+                    font=dict(size=42, color="#FFF", family="DM Sans"),
+                    showarrow=False, xref="paper", yref="paper"
+                )
+                fig.update_layout(
+                    height=220,
+                    margin=dict(l=30,r=30,t=50,b=10),
+                    paper_bgcolor=C1,
+                    font_family="DM Sans")
                 return fig
             g1, g2 = st.columns(2)
             with g1: st.plotly_chart(obv_gauge(total_impact, "Total Impact", ORG), use_container_width=True)

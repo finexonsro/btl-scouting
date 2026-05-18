@@ -184,9 +184,9 @@ def load_data():
                      on_bad_lines='skip', low_memory=False,
                      quotechar='"', encoding='utf-8')
     # Strip quotes and normalize column names
+    # Save OBV column mapping BEFORE lowercasing (OBV_Total Impact → obv_total impact → OBV_Total Impact)
+    obv_restore = {c.lower().strip(): c for c in df.columns if c.startswith("OBV_")}
     df.columns = [c.lower().strip().strip('"').strip("'") for c in df.columns]
-    # Restore OBV_ columns to original case (OBV_Total Impact etc.) before lowercase wipes them
-    obv_restore = {c.lower(): c for c in df.columns if c.startswith("OBV_")}
     # All columns are now lowercase - Pct_Score → pct_score, SC_PSV-99 → sc_psv-99
     if "age" in df.columns:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")

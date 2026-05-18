@@ -186,45 +186,6 @@ def load_data():
     # Strip quotes and normalize column names
     df.columns = [c.lower().strip().strip('"').strip("'") for c in df.columns]
     # All columns are now lowercase - Pct_Score → pct_score, SC_PSV-99 → sc_psv-99
-    # Alias mapping for BTL_merged format (no SC_ prefix) → app format
-    alias = {
-        "psv-99":                                                "sc_psv-99",
-        "speed flag":                                            "speed_flag",
-        "speed score":                                           "speed_score",
-        "hsr distance p60bip":                                   "sc_hsr distance p60bip",
-        "sprint distance p60bip":                                "sc_sprint distance p60bip",
-        "hi distance bip p60bip":                                "sc_hi distance bip p60bip",
-        "explosive acceleration to sprint count p60bip":         "sc_explosive acceleration to sprint count p60bip",
-        "bip score":                                             "bip_score",
-        "bip level":                                             "bip_level",
-        "hsr distance otip p30otip":                             "sc_hsr distance otip p30otip",
-        "sprint distance otip p30otip":                          "sc_sprint distance otip p30otip",
-        "hi distance otip p30otip":                              "sc_hi distance otip p30otip",
-        "explosive acceleration to sprint count otip p30otip":   "sc_explosive acceleration to sprint count otip p30otip",
-        "otip score":                                            "otip_score",
-        "otip pass":                                             "otip_pass",
-        "top 3 time to hsr":                                     "sc_top 3 time to hsr",
-        "top 3 time to hsr post-cod":                            "sc_top 3 time to hsr post-cod",
-        "top 3 time to sprint":                                  "sc_top 3 time to sprint",
-        "top 3 time to 505 around 90":                           "sc_top 3 time to 505 around 90",
-        "burst score":                                           "burst_score",
-        "physical score":                                        "physical score",
-        "spieler":                                               "name",
-        "verein":                                                "team",
-        "liga":                                                  "liga",
-        "alter":                                                 "age",
-        "minuten":                                               "minutes",
-        "final tier":                                            "final_tier",
-        "ifi label":                                             "ifi_label",
-        "ifi percentile":                                        "ifi_percentile",
-        "bl level":                                              "bl level",
-        "spielertyp":                                            "spielertyp",
-        "markt":                                                 "markt",
-        "altersband":                                            "altersband",
-        "datenquelle":                                           "datenquelle",
-        "competition":                                           "competition",
-    }
-    df = df.rename(columns={k: v for k, v in alias.items() if k in df.columns and v not in df.columns})
     if "age" in df.columns:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").round(0).astype("Int64")
     df["markt"] = "DACH"
@@ -1480,26 +1441,26 @@ with tab3:
         st.info("Keine Spieler gefunden — Filter anpassen.")
 
 with tab4:
-    OBV_COLS = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area"]
-    has_obv = any(c in df.columns for c in OBV_COLS)
+    OBV_COLS_CHECK = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area"]
+    has_obv = any(c in df.columns for c in OBV_COLS_CHECK)
     if not has_obv:
         st.info("OBV-Daten noch nicht verfügbar. OBV-Merge durchführen und App-Daten aktualisieren.")
     else:
-        obv_players = df[df["OBV_Total Impact"].notna()]["Spieler"].unique().tolist()
+        obv_players = df[df["OBV_Total Impact"].notna()]["name"].unique().tolist()
         current_obv = st.session_state.get("obv_player", obv_players[0] if obv_players else "")
         if current_obv not in obv_players and obv_players:
             current_obv = obv_players[0]
         sel_obv = st.selectbox("Spieler auswählen", obv_players,
             index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel")
         st.session_state["obv_player"] = sel_obv
-        row_obv = df[df["Spieler"] == sel_obv]
+        row_obv = df[df["name"] == sel_obv]
         if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
             row_o = row_obv.iloc[0]
             total_impact = int(row_o.get("OBV_Total Impact", 0) or 0)
             impact_p90   = int(row_o.get("OBV_Impact per 90", 0) or 0)
             st.markdown(f"""<div style='background:{C1};border-radius:10px;padding:16px 20px;margin-bottom:16px;border-left:3px solid {ORG}'>
                 <span style='font-size:20px;font-weight:700;color:#FFF'>{sel_obv}</span>
-                <span style='color:#888;font-size:13px;margin-left:12px'>{row_o.get("Verein","—")} · {row_o.get("Liga","—")} · {row_o.get("Position","—")}</span>
+                <span style='color:#888;font-size:13px;margin-left:12px'>{row_o.get("team","—")} · {row_o.get("liga","—")} · {row_o.get("position","—")}</span>
             </div>""", unsafe_allow_html=True)
             def obv_gauge(val, label, color):
                 fig = go.Figure(go.Indicator(mode="gauge+number", value=val,
@@ -1527,43 +1488,43 @@ with tab4:
             st.info(f"Keine OBV-Daten für {sel_obv} verfügbar.")
 
 with tab5:
-    OBV_COLS = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area"]
-    has_obv = any(c in df.columns for c in OBV_COLS)
+    OBV_COLS_CHECK = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area"]
+    has_obv = any(c in df.columns for c in OBV_COLS_CHECK)
     if not has_obv:
         st.info("OBV-Daten noch nicht verfügbar.")
     else:
         df_obv = df[df["OBV_Total Impact"].notna()].copy()
         fc1, fc2, fc3, fc4 = st.columns(4)
         with fc1:
-            pos_opts = ["Alle"] + sorted(df_obv["Position"].dropna().unique().tolist())
+            pos_opts = ["Alle"] + sorted(df_obv["position"].dropna().unique().tolist())
             sel_pos_obv = st.selectbox("Position", pos_opts, key="obv_pos")
         with fc2:
-            liga_opts = ["Alle"] + sorted(df_obv["Liga"].dropna().unique().tolist())
+            liga_opts = ["Alle"] + sorted(df_obv["liga"].dropna().unique().tolist())
             sel_liga_obv = st.selectbox("Liga", liga_opts, key="obv_liga")
         with fc3:
-            markt_opts = ["Alle"] + sorted(df_obv["Markt"].dropna().unique().tolist())
+            markt_opts = ["Alle"] + sorted(df_obv["markt"].dropna().unique().tolist())
             sel_markt_obv = st.selectbox("Markt", markt_opts, key="obv_markt")
         with fc4:
             min_min_obv = st.slider("Min. Minuten", 0, 2000, 300, 50, key="obv_min")
         dof = df_obv.copy()
-        if sel_pos_obv  != "Alle": dof = dof[dof["Position"] == sel_pos_obv]
-        if sel_liga_obv != "Alle": dof = dof[dof["Liga"] == sel_liga_obv]
-        if sel_markt_obv!= "Alle": dof = dof[dof["Markt"] == sel_markt_obv]
-        if "Minuten" in dof.columns: dof = dof[dof["Minuten"] >= min_min_obv]
+        if sel_pos_obv   != "Alle": dof = dof[dof["position"] == sel_pos_obv]
+        if sel_liga_obv  != "Alle": dof = dof[dof["liga"] == sel_liga_obv]
+        if sel_markt_obv != "Alle": dof = dof[dof["markt"] == sel_markt_obv]
+        if "minutes" in dof.columns: dof = dof[pd.to_numeric(dof["minutes"], errors="coerce").fillna(0) >= min_min_obv]
         st.markdown(f"<span style='color:{ORG};font-weight:600'>{len(dof)} Spieler</span>", unsafe_allow_html=True)
-        obv_num = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area","Physical Score","IFI Percentile","PSV-99","Alter"]
+        obv_num = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area","physical score","pct_score","sc_psv-99","age"]
         obv_num = [c for c in obv_num if c in dof.columns]
         sc1, sc2, sc3 = st.columns(3)
         with sc1: ox = st.selectbox("X-Achse", obv_num, index=0, key="obv_x")
         with sc2: oy = st.selectbox("Y-Achse", obv_num, index=1, key="obv_y")
-        with sc3: ocb = st.selectbox("Farbe", ["Position","Markt","Liga","Final Tier","IFI Label"], key="obv_cb")
+        with sc3: ocb = st.selectbox("Farbe", ["position","markt","liga","final_tier","ifi_label"], key="obv_cb")
         if not dof.empty:
             try:
                 pdf_obv = dof.dropna(subset=[ox, oy]).copy()
-                cm = TIER_COLORS if ocb == "Final Tier" else None
+                cm = TIER_COLORS if ocb == "final_tier" else None
                 fig_sc = px.scatter(pdf_obv, x=ox, y=oy, color=ocb, color_discrete_map=cm,
-                    hover_name="Spieler",
-                    hover_data={c:True for c in ["Verein","Liga","Position","Alter","OBV_Total Impact","OBV_Impact per 90"] if c in pdf_obv.columns},
+                    hover_name="name",
+                    hover_data={c:True for c in ["team","liga","position","age","OBV_Total Impact","OBV_Impact per 90"] if c in pdf_obv.columns},
                     template="plotly_dark", height=500)
                 fig_sc.update_layout(paper_bgcolor=BG,plot_bgcolor="#333",font_family="DM Sans",font_color="#AAA",
                     xaxis=dict(gridcolor="#3A3A3A",zeroline=False),yaxis=dict(gridcolor="#3A3A3A",zeroline=False),
@@ -1574,6 +1535,7 @@ with tab5:
                 st.error(f"Fehler: {e}")
 
 with tab6:
+
     ca, cb_ = st.columns(2)
     with ca:
         st.markdown("### Physical Layer Profile")

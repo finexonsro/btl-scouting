@@ -209,6 +209,20 @@ def load_data():
         "top 3 time to 505 around 90":                           "sc_top 3 time to 505 around 90",
         "burst score":                                           "burst_score",
         "physical score":                                        "physical score",
+        "spieler":                                               "name",
+        "verein":                                                "team",
+        "liga":                                                  "liga",
+        "alter":                                                 "age",
+        "minuten":                                               "minutes",
+        "final tier":                                            "final_tier",
+        "ifi label":                                             "ifi_label",
+        "ifi percentile":                                        "ifi_percentile",
+        "bl level":                                              "bl level",
+        "spielertyp":                                            "spielertyp",
+        "markt":                                                 "markt",
+        "altersband":                                            "altersband",
+        "datenquelle":                                           "datenquelle",
+        "competition":                                           "competition",
     }
     df = df.rename(columns={k: v for k, v in alias.items() if k in df.columns and v not in df.columns})
     if "age" in df.columns:

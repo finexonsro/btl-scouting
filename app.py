@@ -1200,6 +1200,14 @@ with tab1:
                         df_f.to_csv(index=False).encode("utf-8"),
                         "btl_scouting.csv", "text/csv", use_container_width=True)
 
+                # OBV Link
+                has_obv_data = any(c in df.columns for c in ["OBV_Total Impact"])
+                if has_obv_data and df[df["name"]==sel_name]["OBV_Total Impact"].notna().any():
+                    st.markdown(f"""<div style='margin-top:12px;padding:10px 16px;background:#1A1A2E;border-radius:8px;border-left:3px solid {ORG}'>
+                        <span style='color:#AAA;font-size:12px'>⚽ OBV-Daten verfügbar — </span>
+                        <span style='color:{ORG};font-size:12px;font-weight:600'>Tab "🔮 OBV Profil" öffnen → Spieler wird automatisch geladen</span>
+                    </div>""", unsafe_allow_html=True)
+
 # ── TAB 2: TEAM-SUCHE ────────────────────────────────────────────────────────
 with tab2:
     st.markdown("### 🏟️ Team-Suche")
@@ -1509,6 +1517,57 @@ with tab4:
                 font_family="DM Sans",font_color="#AAA",yaxis=dict(range=[0,110],gridcolor="#3A3A3A",zeroline=False),
                 xaxis=dict(gridcolor="rgba(0,0,0,0)"),showlegend=False)
             st.plotly_chart(fig_bar, use_container_width=True)
+
+            # ── Kombinierter Report ──────────────────────────────────────────
+            st.markdown(f"<div style='color:{ORG};font-size:11px;font-weight:700;letter-spacing:0.12em;margin:20px 0 8px'>📄 KOMBINIERTER REPORT</div>", unsafe_allow_html=True)
+
+            def make_combined_report(row_o):
+                name    = row_o.get("name", "—")
+                team    = row_o.get("team", "—")
+                liga    = row_o.get("liga", "—")
+                pos     = row_o.get("position", "—")
+                age     = row_o.get("age", "—")
+                psv     = f'{float(row_o.get("sc_psv-99", 0) or 0):.2f}' if row_o.get("sc_psv-99") else "—"
+                phys    = f'{float(row_o.get("physical score", 0) or 0):.1f}' if row_o.get("physical score") else "—"
+                ifi_pct = f'{float(row_o.get("pct_score", 0) or 0)*100:.0f}' if row_o.get("pct_score") else "—"
+                ti      = int(row_o.get("OBV_Total Impact", 0) or 0)
+                ip90    = int(row_o.get("OBV_Impact per 90", 0) or 0)
+                comp_labels = ["Buildup Pass","Carries","Defense","Final Ball","Pen Area","Shooting"]
+                comp_values = [int(row_o.get(f"OBV_{c}", 0) or 0) for c in comp_labels]
+                comp_rows = "".join(f"<tr><td>{l}</td><td style='text-align:right;font-weight:700'>{v}</td></tr>" for l, v in zip(comp_labels, comp_values))
+                return f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
+<style>body{{font-family:DM Sans,sans-serif;background:#1A1A1A;color:#FFF;padding:32px;max-width:700px;margin:auto}}
+h1{{color:#E8650A;font-size:24px;margin-bottom:4px}}
+.sub{{color:#888;font-size:13px;margin-bottom:24px}}
+.section{{background:#252525;border-radius:10px;padding:16px 20px;margin-bottom:16px;border-left:3px solid #E8650A}}
+h2{{color:#E8650A;font-size:13px;font-weight:700;letter-spacing:.1em;margin:0 0 12px}}
+table{{width:100%;border-collapse:collapse}}td{{padding:6px 0;border-bottom:1px solid #333;font-size:13px;color:#CCC}}
+td:last-child{{color:#FFF}}.big{{font-size:36px;font-weight:700;color:#FFF}}.lbl{{font-size:11px;color:#888}}
+</style></head><body>
+<h1>{name}</h1>
+<div class='sub'>{team} · {liga} · {pos} · {age} Jahre</div>
+<div class='section'><h2>⚡ PHYSICAL</h2><table>
+<tr><td>PSV-99</td><td style='text-align:right;font-weight:700'>{psv}</td></tr>
+<tr><td>Physical Score</td><td style='text-align:right;font-weight:700'>{phys}</td></tr>
+<tr><td>IFI Percentile</td><td style='text-align:right;font-weight:700'>{ifi_pct}%</td></tr>
+</table></div>
+<div class='section'><h2>⚽ ON BALL VALUE</h2>
+<div style='display:flex;gap:32px;margin-bottom:16px'>
+<div><div class='big'>{ti}</div><div class='lbl'>Total Impact</div></div>
+<div><div class='big'>{ip90}</div><div class='lbl'>Impact per 90</div></div>
+</div>
+<table>{comp_rows}</table></div>
+</body></html>"""
+
+            row_full = df[df["name"] == sel_obv].iloc[0] if not df[df["name"] == sel_obv].empty else row_o
+            combined_html = make_combined_report(row_full)
+            st.download_button(
+                "📄 Kombinierter Report (HTML)",
+                combined_html.encode("utf-8"),
+                f"Report_{sel_obv.replace(' ','_')}.html",
+                "text/html",
+                use_container_width=True
+            )
         else:
             st.info(f"Keine OBV-Daten für {sel_obv} verfügbar.")
 
@@ -1556,6 +1615,14 @@ with tab5:
                     legend=dict(bgcolor="#333",bordercolor="#444",borderwidth=1),margin=dict(l=40,r=20,t=40,b=40))
                 fig_sc.update_traces(marker=dict(size=8,line=dict(width=0.5,color=BG)))
                 st.plotly_chart(fig_sc, use_container_width=True)
+
+                # Spieler aus Scatter in OBV Profil laden
+                st.markdown(f"<div style='color:#888;font-size:11px;margin-top:8px'>💡 Spieler ins OBV Profil laden:</div>", unsafe_allow_html=True)
+                scatter_names = sorted(pdf_obv["name"].unique().tolist())
+                sc_sel = st.selectbox("Spieler auswählen →", ["—"] + scatter_names, key="obv_sc_sel")
+                if sc_sel != "—":
+                    st.session_state["obv_player"] = sc_sel
+                    st.info(f"✅ {sc_sel} gesetzt — Tab '🔮 OBV Profil' öffnen")
             except Exception as e:
                 st.error(f"Fehler: {e}")
 

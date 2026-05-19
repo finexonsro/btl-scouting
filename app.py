@@ -706,10 +706,10 @@ def make_html_report(row, position, obv_row=None):
             "Shooting":     "Abschluss",
         }
         def obv_color(v):
-            if v >= 70: return "#E8560A"
-            if v >= 55: return "#64B5F6"
+            if v >= 60: return "#E8560A"
+            if v >= 50: return "#64B5F6"
             if v >= 40: return "#888"
-            return "#555"
+            return "#444"
         comp_rows_html = ""
         for eng, de in OBV_COMP_DE.items():
             v = obv_row.get(f"OBV_{eng}", None)
@@ -1510,9 +1510,16 @@ with tab4:
         current_obv = st.session_state.get("obv_player", obv_players[0] if obv_players else "")
         if current_obv not in obv_players and obv_players:
             current_obv = obv_players[0]
+        # Zeige Banner wenn Spieler aus Spielerliste/Screener kommt
+        was_preloaded = current_obv in obv_players and current_obv != obv_players[0]
+        if was_preloaded:
+            st.markdown(f"""<div style='background:#1A2E1A;border-radius:8px;padding:10px 16px;
+                margin-bottom:10px;border-left:3px solid #4CAF50;'>
+                <span style='color:#4CAF50;font-weight:700;font-size:13px'>✅ Aus Spielerliste geladen: </span>
+                <span style='color:#FFF;font-size:13px'>{current_obv}</span>
+            </div>""", unsafe_allow_html=True)
         sel_obv = st.selectbox("Spieler auswählen", obv_players,
-            index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel",
-            help="Spieler in Spielerliste oder OBV Screener auswählen → hier automatisch vorgewählt")
+            index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel")
         st.session_state["obv_player"] = sel_obv
         row_obv = df[df["name"] == sel_obv]
         if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
@@ -1560,7 +1567,7 @@ with tab4:
             comp_keys   = list(OBV_COMP_DE.keys())
             comp_labels_de = list(OBV_COMP_DE.values())
             comp_values = [int(row_o.get(f"OBV_{c}", 0) or 0) for c in comp_keys]
-            comp_colors = [ORG if v >= 70 else "#64B5F6" if v >= 55 else "#888" if v >= 40 else "#555" for v in comp_values]
+            comp_colors = [ORG if v >= 60 else "#64B5F6" if v >= 50 else "#888" if v >= 40 else "#444" for v in comp_values]
             fig_bar = go.Figure(go.Bar(x=comp_labels_de, y=comp_values, marker_color=comp_colors,
                 text=comp_values, textposition="outside", textfont=dict(color="#FFF", size=12)))
             fig_bar.update_layout(height=300,margin=dict(l=20,r=20,t=20,b=40),paper_bgcolor=BG,plot_bgcolor="#333",

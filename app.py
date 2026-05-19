@@ -612,7 +612,7 @@ def make_radar(row, position):
     return fig
 
 # ── HTML REPORT ───────────────────────────────────────────────────────────────
-def make_html_report(row, position):
+def make_html_report(row, position, obv_row=None):
     pos_cfg   = POS_CONFIG.get(position, {})
     attrs     = pos_cfg.get("attrs", [])
     attrs_de  = pos_cfg.get("attrs_de", attrs)
@@ -691,6 +691,49 @@ def make_html_report(row, position):
     ps_lbl = "⚡ Speed+Burst (DACH%)"
     ps_disp = f"{ps_abs:.1f}"
 
+    # ── OBV Sektion ─────────────────────────────────────────────────────────
+    obv_section_html = ""
+    if obv_row is not None:
+        ti   = obv_row.get("OBV_Total Impact", None)
+        ip90 = obv_row.get("OBV_Impact per 90", None)
+        OBV_COMP_DE = {
+            "Buildup Pass": "Spielaufbau",
+            "Carries":      "Ballführung",
+            "Defense":      "Defensiv",
+            "Final Ball":   "Torgefahr",
+            "Pen Area":     "Strafraum",
+            "Shooting":     "Abschluss",
+        }
+        def obv_color(v):
+            if v >= 70: return "#E8560A"
+            if v >= 55: return "#64B5F6"
+            if v >= 40: return "#888"
+            return "#555"
+        comp_rows_html = ""
+        for eng, de in OBV_COMP_DE.items():
+            v = obv_row.get(f"OBV_{eng}", None)
+            if v is None: continue
+            v = int(v)
+            bar_pct = min(100, v / 80 * 100)
+            comp_rows_html += f"""<tr>
+                <td style="padding:5px 8px;font-size:12px;">{de}</td>
+                <td style="padding:5px 8px;width:180px;">
+                    <div style="background:#2A2A2A;border-radius:4px;height:8px;">
+                        <div style="background:{obv_color(v)};width:{bar_pct:.0f}%;height:8px;border-radius:4px;"></div>
+                    </div>
+                </td>
+                <td style="padding:5px 8px;font-size:12px;color:{obv_color(v)};font-weight:600;">{v}</td>
+            </tr>"""
+        ti_str   = f"{float(ti):.1f}" if ti is not None else "—"
+        ip90_str = f"{float(ip90):.1f}" if ip90 is not None else "—"
+        obv_section_html = f"""
+<div class="section"><h2>⚽ On-Ball Value (OBV)</h2></div>
+<div class="ifi-grid" style="grid-template-columns:repeat(2,1fr);">
+    <div class="card"><div class="val" style="color:#E8560A;">{ti_str}</div><div class="lbl">Total Impact</div></div>
+    <div class="card"><div class="val" style="color:#64B5F6;">{ip90_str}</div><div class="lbl">Impact pro 90 Min.</div></div>
+</div>
+<div class="section"><h2>⚽ OBV Komponenten</h2><table>{comp_rows_html}</table></div>"""
+
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Scouting Report – {row.get('name','—')}</title>
 <style>
@@ -729,6 +772,7 @@ table{{width:100%;border-collapse:collapse;}}
 </div>
 <div class="section"><h2>⚡ Physical Breakdown (Liga-Peer%)</h2><table>{phys_rows}</table></div>
 <div class="section"><h2>🎯 IFI Profil — {pos_cfg.get('de',position)}</h2><table>{ifi_rows}</table></div>
+{obv_section_html}
 <div style="margin-top:20px;font-size:10px;color:#555;text-align:right;">
     Between The Lines Scouting Intelligence · {datetime.now().strftime('%d.%m.%Y')}
 </div>
@@ -1186,7 +1230,8 @@ with tab1:
 
                 dl1, dl2, dl3 = st.columns(3)
                 with dl1:
-                    html_rep = make_html_report(row, pos_row)
+                    obv_r = df[df["name"]==sel_name].iloc[0] if not df[df["name"]==sel_name].empty else None
+                    html_rep = make_html_report(row, pos_row, obv_row=obv_r if (obv_r is not None and pd.notna(obv_r.get("OBV_Total Impact"))) else None)
                     st.download_button("📄 Profil HTML", html_rep.encode("utf-8"),
                         f"Profil_{str(row.get('name','player')).replace(' ','_')}.html",
                         "text/html", use_container_width=True)
@@ -1486,7 +1531,7 @@ with tab4:
                     domain={"x":[0,1],"y":[0,1]},
                     gauge={
                         "axis":{"range":[20,80],"tickmode":"array","tickvals":[20,40,60,80],"tickfont":{"color":"#666","size":10}},
-                        "bar":{"color":color,"thickness":0.3},
+                        "bar":{"color":color,"thickness":0.45},
                         "bgcolor":"#2A2A2A",
                         "borderwidth":0,
                         "steps":[{"range":[20,50],"color":"#2A2A2A"},{"range":[50,65],"color":"#2E2E2E"},{"range":[65,80],"color":"#333333"}],
@@ -1494,7 +1539,7 @@ with tab4:
                     title={"text":label,"font":{"size":13,"color":"#AAA"}},
                 ))
                 fig.add_annotation(
-                    x=0.5, y=0.25, text=f"<b>{val}</b>",
+                    x=0.5, y=0.25, text=f"<b>{val:.1f}</b>",
                     font=dict(size=42, color="#FFF", family="DM Sans"),
                     showarrow=False, xref="paper", yref="paper"
                 )
@@ -1508,13 +1553,16 @@ with tab4:
             with g1: st.plotly_chart(obv_gauge(total_impact, "Total Impact", ORG), use_container_width=True)
             with g2: st.plotly_chart(obv_gauge(impact_p90, "Impact per 90", "#64B5F6"), use_container_width=True)
             st.markdown(f"<div style='color:{ORG};font-size:11px;font-weight:700;letter-spacing:0.12em;margin:12px 0 8px'>⚽ RATING COMPONENTS</div>", unsafe_allow_html=True)
-            comp_labels = ["Buildup Pass","Carries","Defense","Final Ball","Pen Area","Shooting"]
-            comp_values = [int(row_o.get(f"OBV_{c}", 0) or 0) for c in comp_labels]
-            comp_colors = [ORG if v >= 70 else "#64B5F6" if v >= 50 else "#888" for v in comp_values]
-            fig_bar = go.Figure(go.Bar(x=comp_labels, y=comp_values, marker_color=comp_colors,
+            OBV_COMP_DE = {"Buildup Pass":"Spielaufbau","Carries":"Ballführung","Defense":"Defensiv",
+                             "Final Ball":"Torgefahr","Pen Area":"Strafraum","Shooting":"Abschluss"}
+            comp_keys   = list(OBV_COMP_DE.keys())
+            comp_labels_de = list(OBV_COMP_DE.values())
+            comp_values = [int(row_o.get(f"OBV_{c}", 0) or 0) for c in comp_keys]
+            comp_colors = [ORG if v >= 70 else "#64B5F6" if v >= 55 else "#888" if v >= 40 else "#555" for v in comp_values]
+            fig_bar = go.Figure(go.Bar(x=comp_labels_de, y=comp_values, marker_color=comp_colors,
                 text=comp_values, textposition="outside", textfont=dict(color="#FFF", size=12)))
             fig_bar.update_layout(height=300,margin=dict(l=20,r=20,t=20,b=40),paper_bgcolor=BG,plot_bgcolor="#333",
-                font_family="DM Sans",font_color="#AAA",yaxis=dict(range=[0,110],gridcolor="#3A3A3A",zeroline=False),
+                font_family="DM Sans",font_color="#AAA",yaxis=dict(range=[0,85],gridcolor="#3A3A3A",zeroline=False,dtick=20),
                 xaxis=dict(gridcolor="rgba(0,0,0,0)"),showlegend=False)
             st.plotly_chart(fig_bar, use_container_width=True)
 
@@ -1559,15 +1607,18 @@ td:last-child{{color:#FFF}}.big{{font-size:36px;font-weight:700;color:#FFF}}.lbl
 <table>{comp_rows}</table></div>
 </body></html>"""
 
-            row_full = df[df["name"] == sel_obv].iloc[0] if not df[df["name"] == sel_obv].empty else row_o
-            combined_html = make_combined_report(row_full)
-            st.download_button(
-                "📄 Kombinierter Report (HTML)",
-                combined_html.encode("utf-8"),
-                f"Report_{sel_obv.replace(' ','_')}.html",
-                "text/html",
-                use_container_width=True
-            )
+            row_full = df[df["name"] == sel_obv]
+            if not row_full.empty:
+                rf = row_full.iloc[0]
+                pos_obv = rf.get("position", list(POS_CONFIG.keys())[0])
+                combined_html = make_html_report(rf, pos_obv, obv_row=row_o)
+                st.download_button(
+                    "📄 Kombinierter Report (HTML)",
+                    combined_html.encode("utf-8"),
+                    f"Report_{sel_obv.replace(' ','_')}.html",
+                    "text/html",
+                    use_container_width=True
+                )
         else:
             st.info(f"Keine OBV-Daten für {sel_obv} verfügbar.")
 
@@ -1601,19 +1652,41 @@ with tab5:
         sc1, sc2, sc3 = st.columns(3)
         with sc1: ox = st.selectbox("X-Achse", obv_num, index=0, key="obv_x")
         with sc2: oy = st.selectbox("Y-Achse", obv_num, index=1, key="obv_y")
-        with sc3: ocb = st.selectbox("Farbe", ["position","markt","liga","final_tier","ifi_label"], key="obv_cb")
+        with sc3: ocb = st.selectbox("Farbe", ["age","position","markt","liga","final_tier","ifi_label"], key="obv_cb")
         if not dof.empty:
             try:
                 pdf_obv = dof.dropna(subset=[ox, oy]).copy()
+                # IFI Percentile als Dot-Größe
+                size_col = "pct_score"
+                if size_col in pdf_obv.columns:
+                    sz_raw = pd.to_numeric(pdf_obv[size_col], errors="coerce").fillna(0.5)
+                    sz_vals = (sz_raw * 30 + 6).tolist()
+                else:
+                    sz_vals = None
                 cm = TIER_COLORS if ocb == "final_tier" else None
-                fig_sc = px.scatter(pdf_obv, x=ox, y=oy, color=ocb, color_discrete_map=cm,
-                    hover_name="name",
-                    hover_data={c:True for c in ["team","liga","position","age","OBV_Total Impact","OBV_Impact per 90"] if c in pdf_obv.columns},
-                    template="plotly_dark", height=500)
+                # Alter als kontinuierliche Farbe
+                if ocb == "age":
+                    pdf_obv["age_num"] = pd.to_numeric(pdf_obv["age"], errors="coerce")
+                    fig_sc = px.scatter(pdf_obv, x=ox, y=oy, color="age_num",
+                        color_continuous_scale=[[0,"#64B5F6"],[0.4,"#4CAF50"],[0.7,"#FF9800"],[1,"#E8560A"]],
+                        size=sz_vals, size_max=28,
+                        hover_name="name",
+                        hover_data={c:True for c in ["team","liga","position","age","OBV_Total Impact","OBV_Impact per 90","pct_score"] if c in pdf_obv.columns},
+                        labels={"age_num":"Alter"},
+                        template="plotly_dark", height=520)
+                    fig_sc.update_coloraxes(colorbar=dict(title="Alter",tickfont=dict(color="#AAA"),title_font=dict(color="#AAA")))
+                else:
+                    fig_sc = px.scatter(pdf_obv, x=ox, y=oy, color=ocb, color_discrete_map=cm,
+                        size=sz_vals, size_max=28,
+                        hover_name="name",
+                        hover_data={c:True for c in ["team","liga","position","age","OBV_Total Impact","OBV_Impact per 90","pct_score"] if c in pdf_obv.columns},
+                        template="plotly_dark", height=520)
                 fig_sc.update_layout(paper_bgcolor=BG,plot_bgcolor="#333",font_family="DM Sans",font_color="#AAA",
                     xaxis=dict(gridcolor="#3A3A3A",zeroline=False),yaxis=dict(gridcolor="#3A3A3A",zeroline=False),
                     legend=dict(bgcolor="#333",bordercolor="#444",borderwidth=1),margin=dict(l=40,r=20,t=40,b=40))
-                fig_sc.update_traces(marker=dict(size=8,line=dict(width=0.5,color=BG)))
+                if sz_vals is None:
+                    fig_sc.update_traces(marker=dict(size=8,line=dict(width=0.5,color=BG)))
+                st.caption("💡 Dot-Größe = IFI Perzentil (größer = besser)")
                 st.plotly_chart(fig_sc, use_container_width=True)
 
                 # Spieler aus Scatter in OBV Profil laden

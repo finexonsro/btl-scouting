@@ -689,7 +689,8 @@ def make_html_report(row, position, obv_row=None):
 
     # Physical score display (kept for backward compat)
     ps_lbl = "⚡ Speed+Burst (DACH%)"
-    ps_disp = f"{ps_abs:.1f}"
+    ps_abs = abs(ps) if pd.notna(ps) and ps != 0 else 0
+    ps_disp = f"{ps_abs:.1f}" if ps_abs > 0 else "—"
 
     # ── OBV Sektion ─────────────────────────────────────────────────────────
     obv_section_html = ""
@@ -1510,7 +1511,8 @@ with tab4:
         if current_obv not in obv_players and obv_players:
             current_obv = obv_players[0]
         sel_obv = st.selectbox("Spieler auswählen", obv_players,
-            index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel")
+            index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel",
+            help="Spieler in Spielerliste oder OBV Screener auswählen → hier automatisch vorgewählt")
         st.session_state["obv_player"] = sel_obv
         row_obv = df[df["name"] == sel_obv]
         if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
@@ -1629,7 +1631,7 @@ with tab5:
         st.info("OBV-Daten noch nicht verfügbar.")
     else:
         df_obv = df[df["OBV_Total Impact"].notna()].copy()
-        fc1, fc2, fc3, fc4 = st.columns(4)
+        fc1, fc2, fc3 = st.columns(3)
         with fc1:
             pos_opts = ["Alle"] + sorted(df_obv["position"].dropna().unique().tolist())
             sel_pos_obv = st.selectbox("Position", pos_opts, key="obv_pos")
@@ -1639,20 +1641,27 @@ with tab5:
         with fc3:
             markt_opts = ["Alle"] + sorted(df_obv["markt"].dropna().unique().tolist())
             sel_markt_obv = st.selectbox("Markt", markt_opts, key="obv_markt")
-        with fc4:
+        # Alter + Minuten als Slider
+        sl1, sl2 = st.columns(2)
+        with sl1:
             min_min_obv = st.slider("Min. Minuten", 0, 2000, 300, 50, key="obv_min")
+        with sl2:
+            age_range_obv = st.slider("Alter", 14, 42, (16, 32), 1, key="obv_age")
         dof = df_obv.copy()
         if sel_pos_obv   != "Alle": dof = dof[dof["position"] == sel_pos_obv]
         if sel_liga_obv  != "Alle": dof = dof[dof["liga"] == sel_liga_obv]
         if sel_markt_obv != "Alle": dof = dof[dof["markt"] == sel_markt_obv]
         if "minutes" in dof.columns: dof = dof[pd.to_numeric(dof["minutes"], errors="coerce").fillna(0) >= min_min_obv]
+        if "age" in dof.columns:
+            age_num = pd.to_numeric(dof["age"], errors="coerce")
+            dof = dof[(age_num >= age_range_obv[0]) & (age_num <= age_range_obv[1])]
         st.markdown(f"<span style='color:{ORG};font-weight:600'>{len(dof)} Spieler</span>", unsafe_allow_html=True)
         obv_num = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area","physical score","pct_score","sc_psv-99","age"]
         obv_num = [c for c in obv_num if c in dof.columns]
         sc1, sc2, sc3 = st.columns(3)
         with sc1: ox = st.selectbox("X-Achse", obv_num, index=0, key="obv_x")
         with sc2: oy = st.selectbox("Y-Achse", obv_num, index=1, key="obv_y")
-        with sc3: ocb = st.selectbox("Farbe", ["age","position","markt","liga","final_tier","ifi_label"], key="obv_cb")
+        with sc3: ocb = "final_tier"  # Fix: immer Final Tier als Farbe
         if not dof.empty:
             try:
                 pdf_obv = dof.dropna(subset=[ox, oy]).copy()
@@ -1665,25 +1674,18 @@ with tab5:
                     sz_vals = None
                 cm = TIER_COLORS if ocb == "final_tier" else None
                 # Alter als kontinuierliche Farbe
-                if ocb == "age":
-                    pdf_obv["age_num"] = pd.to_numeric(pdf_obv["age"], errors="coerce")
-                    fig_sc = px.scatter(pdf_obv, x=ox, y=oy, color="age_num",
-                        color_continuous_scale=[[0,"#64B5F6"],[0.4,"#4CAF50"],[0.7,"#FF9800"],[1,"#E8560A"]],
-                        size=sz_vals, size_max=28,
-                        hover_name="name",
-                        hover_data={c:True for c in ["team","liga","position","age","OBV_Total Impact","OBV_Impact per 90","pct_score"] if c in pdf_obv.columns},
-                        labels={"age_num":"Alter"},
-                        template="plotly_dark", height=520)
-                    fig_sc.update_coloraxes(colorbar=dict(title="Alter",tickfont=dict(color="#AAA"),title_font=dict(color="#AAA")))
-                else:
-                    fig_sc = px.scatter(pdf_obv, x=ox, y=oy, color=ocb, color_discrete_map=cm,
-                        size=sz_vals, size_max=28,
-                        hover_name="name",
-                        hover_data={c:True for c in ["team","liga","position","age","OBV_Total Impact","OBV_Impact per 90","pct_score"] if c in pdf_obv.columns},
-                        template="plotly_dark", height=520)
-                fig_sc.update_layout(paper_bgcolor=BG,plot_bgcolor="#333",font_family="DM Sans",font_color="#AAA",
-                    xaxis=dict(gridcolor="#3A3A3A",zeroline=False),yaxis=dict(gridcolor="#3A3A3A",zeroline=False),
-                    legend=dict(bgcolor="#333",bordercolor="#444",borderwidth=1),margin=dict(l=40,r=20,t=40,b=40))
+                fig_sc = px.scatter(pdf_obv, x=ox, y=oy, color="final_tier",
+                    color_discrete_map=TIER_COLORS,
+                    size=sz_vals, size_max=28,
+                    hover_name="name",
+                    hover_data={c:True for c in ["team","liga","position","age","OBV_Total Impact","OBV_Impact per 90","pct_score"] if c in pdf_obv.columns},
+                    template="plotly_dark", height=520)
+                fig_sc.update_layout(paper_bgcolor=BG,plot_bgcolor="#333",font_family="DM Sans",font_color="#DDD",
+                    xaxis=dict(gridcolor="#3A3A3A",zeroline=False,color="#AAA"),
+                    yaxis=dict(gridcolor="#3A3A3A",zeroline=False,color="#AAA"),
+                    legend=dict(bgcolor="#2A2A2A",bordercolor="#555",borderwidth=1,
+                                font=dict(color="#FFF",size=12),title_font=dict(color="#FFF")),
+                    margin=dict(l=40,r=20,t=40,b=40))
                 if sz_vals is None:
                     fig_sc.update_traces(marker=dict(size=8,line=dict(width=0.5,color=BG)))
                 st.caption("💡 Dot-Größe = IFI Perzentil (größer = besser)")

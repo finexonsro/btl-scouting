@@ -113,8 +113,8 @@ SPEED_FLAGS = {
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-html,body,[class*="css"]{{font-family:'DM Sans',sans-serif;background:{BG};color:{W2};}}
-.main{{background:{BG};}} .block-container{{padding-top:2rem !important;}}
+html,body,[class*="css"]{{font-family:'DM Sans',sans-serif;background:#FFFFFF;color:#1A1A1A;}}
+.main{{background:#FFFFFF;}} .block-container{{padding-top:2rem !important;}} 
 [data-testid="stHeader"]::after{{content:'';display:block;height:4px;
     background:linear-gradient(90deg,{ORG2},{ORG} 40%,#FFa040 60%,{ORG} 80%,{ORG2});
     position:fixed;top:0;left:0;right:0;z-index:9999;}}

@@ -493,7 +493,7 @@ def recalc(df, weights, position):
         else:
             df["pct_score"] = 50.0
     df["ifi_label"]  = df["pct_score"].apply(ifi_label)
-    df["speed_flag"] = df["sc_psv-99"].apply(speed_flag)
+    df["speed_flag"] = df["sc_peak velocity"].apply(speed_flag) 
     df["final_tier"] = df.apply(lambda r: calc_final_tier(r, r.get("ifi_label","—")), axis=1)
     return df
 
@@ -520,7 +520,7 @@ def render_physical_bars(row):
             <div class="pbar-info">{v:.0f}%</div>
         </div>"""
 
-    psv    = float(row.get("sc_psv-99", 0) or 0)
+    psv    = float(row.get("sc_peak velocity", 0) or 0) 
     sf     = row.get("speed_flag", "—")
     sf_c   = SPEED_FLAGS.get(sf, "#888")
     # benchmark_bl/3liga columns kept for backwards compat but not used in display
@@ -551,7 +551,7 @@ def render_physical_bars(row):
     html += f"""
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #3A3A3A;">
         <div style="font-size:12px;color:#888;margin-bottom:4px;">
-            PSV-99: <b style="color:#FFF;">{psv:.2f} km/h</b>
+            Peak Velocity: <b style="color:#FFF;">{psv:.2f} km/h</b> 
             <span style="color:{sf_c};margin-left:8px;font-weight:700;">{sf}</span>
         </div>
     </div>"""

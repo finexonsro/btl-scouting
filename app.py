@@ -217,13 +217,13 @@ df_raw = load_data()
 def speed_flag(psv):
     try:
         v = float(psv)
-        if v >= 32:   return "⚡ ELITE"
-        elif v >= 31: return "🔵 HIGH"
-        elif v >= 30: return "🟡 FAST"
-        elif v >= 29: return "🟠 MEDIUM"
-        else:         return "—"
+        if v >= 33.5:   return "⚡ ELITE"
+        elif v >= 32.5: return "🔵 HIGH"
+        elif v >= 31.5: return "🟡 FAST"
+        elif v >= 30.5: return "🟠 MEDIUM"
+        else:           return "—"
     except:
-        return "—"
+        return "—" 
 
 def ifi_label(pct):
     """pct is 0-100"""

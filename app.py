@@ -628,8 +628,7 @@ def make_html_report(row, position, obv_row=None):
     t_bg      = TIER_COLORS.get(final_tier_l, TIER_COLORS.get(pt_l, "#333"))
     ifi_pct   = float(row.get("pct_score", 50) or 50)
     psv       = float(row.get("sc_psv-99", 0) or 0)
-    sf        = row.get("speed_flag", "—")
-    st.write("DEBUG spielertyp:", row.get("spielertyp"), "| Spalte vorhanden:", "spielertyp" in row.index)  
+    sf        = row.get("speed_flag", "—") 
     spielertyp = str(row.get("spielertyp","—")) if pd.notna(row.get("spielertyp")) else "—"
     age_disp  = str(int(row.get("age"))) if pd.notna(row.get("age")) else "—"
     # 4 Layer scores
@@ -929,7 +928,7 @@ for col, (val, lbl) in zip(kpi_cols, kpis):
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📋 Spieler-Liste","🏟️ Team-Suche","🔍 Market Screener","🔮 OBV Profil","📊 OBV Screener","📖 Info"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📋 Spieler-Liste","🏟️ Team-Suche","🔍 Market Screener","🔮 OBV Profil","📊 OBV Screener","🎯 IFI Screener","📖 Info"]) 
 
 # ── TAB 1: SPIELER-LISTE ──────────────────────────────────────────────────────
 with tab1:
@@ -1055,7 +1054,6 @@ with tab1:
         if "Final Tier" in disp.columns: styled = styled.map(tier_bg,     subset=["Final Tier"])
         if "IFI Label"  in disp.columns: styled = styled.map(ifi_bg,      subset=["IFI Label"])
         if "PSV-99"     in disp.columns: styled = styled.map(psv_bg,      subset=["PSV-99"])
-        st.write("DEBUG doppelte Spalten:", disp.columns[disp.columns.duplicated()].tolist())
 
         if "BL Level"   in disp.columns: styled = styled.map(bl_level_bg, subset=["BL Level"])
 
@@ -1118,8 +1116,7 @@ with tab1:
 
         # ── DETAIL ────────────────────────────────────────────────────────────
         if sel_name and sel_pos_row:
-            st.session_state["obv_player"] = sel_name  # → OBV Profil Tab
-            st.write("DEBUG df hat spielertyp:", "spielertyp" in df.columns, "| Anzahl Spalten:", len(df.columns)) 
+            st.session_state["obv_player"] = sel_name  # → OBV Profil Tab 
             # Nutze vollständigen Eintrag aus df (alle Spalten inkl. pct_attrs)
             if sel_row_idx is not None and sel_row_idx < len(df_display):
                 # Finde den entsprechenden Eintrag in df mit allen Spalten
@@ -1240,7 +1237,6 @@ with tab1:
                 dl1, dl2, dl3 = st.columns(3)
                 with dl1:
                     obv_r = df[df["name"]==sel_name].iloc[0] if not df[df["name"]==sel_name].empty else None
-                    st.write("DEBUG row vor Aufruf:", "spielertyp" in row.index, row.get("spielertyp") if "spielertyp" in row.index else "FEHLT SCHON HIER") 
                     html_rep = make_html_report(row, pos_row, obv_row=obv_r if (obv_r is not None and pd.notna(obv_r.get("OBV_Total Impact"))) else None)
                     st.download_button("📄 Profil HTML", html_rep.encode("utf-8"),
                         f"Profil_{str(row.get('name','player')).replace(' ','_')}.html",
@@ -1716,8 +1712,72 @@ with tab5:
                     st.info(f"✅ {sc_sel} gesetzt — Tab '🔮 OBV Profil' öffnen")
             except Exception as e:
                 st.error(f"Fehler: {e}")
+# ── TAB: IFI SCREENER (Rollenprofil-Index) ────────────────────────────────
+ROLE_OPTIONS = {
+    "Central Defender": ["Kompletter IV","Spielaufbauender IV","Absichernder IV","Physischer IV","Einfacher/Direkter IV"],
+    "Fullback":          ["Kompletter AV","Spielaufbauender AV","Defensiver AV","Dribbelstarker AV","Einfacher AV"],
+    "Winger":            ["Kompletter Flügelspieler","Kreativer Flügelspieler","Dribbelspezialist","Pressing-Flügelspieler","Einfacher Flügelspieler"],
+    "Midfielder":        ["Spielaufbauender 6er","Ballgewinnender 6er","Kreativer 8er/10er","Unauffälliger 8er","Torgefährlicher 10er","Einfacher Mittelfeldspieler"],
+    "Striker":           ["Kompletter Knipser","Zielspieler","Kreativer Stürmer","Pressender Stürmer","Einfacher Stürmer"],
+}
 
 with tab6:
+    st.markdown(f'<div class="sec">🎯 IFI Screener — Rollenprofil-Index</div>', unsafe_allow_html=True)
+    st.caption("Sucht die besten Spieler für ein konkretes Rollenprofil (Index-Score), statt nur die Gesamt-IFI-Perzentile.")
+
+    ic1, ic2, ic3 = st.columns(3)
+    with ic1:
+        ifi_pos = st.selectbox("Position", list(ROLE_OPTIONS.keys()),
+            format_func=lambda x: {"Winger":"Außenstürmer","Striker":"Stürmer",
+                "Midfielder":"Mittelfeld","Fullback":"Außenverteidiger",
+                "Central Defender":"Innenverteidiger"}.get(x,x), key="ifi_pos")
+    with ic2:
+        ifi_role = st.selectbox("Rollenprofil", ROLE_OPTIONS[ifi_pos], key="ifi_role")
+    with ic3:
+        ifi_ligen = ["Alle"] + sorted(df_raw["liga"].dropna().unique().tolist())
+        ifi_liga = st.selectbox("Liga", ifi_ligen, key="ifi_liga")
+
+    ic4, ic5 = st.columns(2)
+    with ic4:
+        ifi_min_min = st.slider("Mindestminuten", 0, 3000, 600, 50, key="ifi_min_min")
+    with ic5:
+        ifi_age = st.slider("Alter", 14, 42, (14, 42), 1, key="ifi_age_range")
+
+    index_col = f"Index_{ifi_role}"
+    fit_col   = f"Fit_{ifi_role}"
+
+    id_df = df_raw[df_raw["position"] == ifi_pos].copy()
+    if ifi_liga != "Alle":
+        id_df = id_df[id_df["liga"] == ifi_liga]
+    if "minutes" in id_df.columns:
+        id_df = id_df[pd.to_numeric(id_df["minutes"], errors="coerce").fillna(0) >= ifi_min_min]
+    if "age" in id_df.columns:
+        age_n = pd.to_numeric(id_df["age"], errors="coerce")
+        id_df = id_df[(age_n >= ifi_age[0]) & (age_n <= ifi_age[1])]
+    if index_col in id_df.columns:
+        id_df = id_df[id_df[index_col].notna()].sort_values(index_col, ascending=False)
+
+    st.markdown(f'<div style="font-size:12px;color:{ORG};font-weight:600;margin-bottom:8px;">{len(id_df)} Spieler gefunden</div>', unsafe_allow_html=True)
+
+    if not id_df.empty and index_col in id_df.columns:
+        id_rows = []
+        for _, r in id_df.iterrows():
+            id_rows.append({
+                "Spieler":    r.get("name","—"),
+                "Team":       r.get("team","—"),
+                "Liga":       r.get("liga","—"),
+                "Alter":      int(r.get("age",0)) if pd.notna(r.get("age")) else None,
+                "Min":        int(r.get("minutes",0) or 0),
+                "Index":      round(float(r.get(index_col)),2) if pd.notna(r.get(index_col)) else None,
+                "Fit":        int(round(float(r.get(fit_col)))) if pd.notna(r.get(fit_col)) else None,
+                "Spielertyp": r.get("spielertyp","—"),
+            })
+        id_disp = pd.DataFrame(id_rows)
+        st.dataframe(id_disp, use_container_width=True, height=440)
+    else:
+        st.info("Keine Spieler für diese Kombination gefunden.")
+        
+with tab7:
 
     ca, cb_ = st.columns(2)
     with ca:

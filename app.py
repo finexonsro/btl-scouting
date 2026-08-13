@@ -1119,6 +1119,7 @@ with tab1:
         # ── DETAIL ────────────────────────────────────────────────────────────
         if sel_name and sel_pos_row:
             st.session_state["obv_player"] = sel_name  # → OBV Profil Tab
+            st.write("DEBUG df hat spielertyp:", "spielertyp" in df.columns, "| Anzahl Spalten:", len(df.columns)) 
             # Nutze vollständigen Eintrag aus df (alle Spalten inkl. pct_attrs)
             if sel_row_idx is not None and sel_row_idx < len(df_display):
                 # Finde den entsprechenden Eintrag in df mit allen Spalten

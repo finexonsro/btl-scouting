@@ -1743,8 +1743,14 @@ with tab6:
     with ic5:
         ifi_age = st.slider("Alter", 14, 42, (14, 42), 1, key="ifi_age_range")
 
-    index_col = f"Index_{ifi_role}"
-    fit_col   = f"Fit_{ifi_role}"
+    def find_col(dframe, name):
+        for c in dframe.columns:
+            if c.lower() == name.lower():
+                return c
+        return None
+
+    index_col = find_col(df_raw, f"Index_{ifi_role}")
+    fit_col   = find_col(df_raw, f"Fit_{ifi_role}") 
 
     id_df = df_raw[df_raw["position"] == ifi_pos].copy()
     if ifi_liga != "Alle":

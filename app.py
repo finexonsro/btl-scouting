@@ -1124,7 +1124,7 @@ with tab1:
             if sel_row_idx is not None and sel_row_idx < len(df_display):
                 # Finde den entsprechenden Eintrag in df mit allen Spalten
                 disp_row = df_display.iloc[sel_row_idx]
-                mask_full = (df["name"] == disp_row.get("name","")) &                             (df["position"] == disp_row.get("position",""))
+                mask_full = (df["name"] == disp_row.get("name","")) & (df["position"] == disp_row.get("position",""))
                 row_m = df[mask_full]
             else:
                 row_m = df[(df["name"] == sel_name) & (df["position"] == sel_pos_row)]

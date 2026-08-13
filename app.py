@@ -629,6 +629,7 @@ def make_html_report(row, position, obv_row=None):
     ifi_pct   = float(row.get("pct_score", 50) or 50)
     psv       = float(row.get("sc_psv-99", 0) or 0)
     sf        = row.get("speed_flag", "—")
+    st.write("DEBUG spielertyp:", row.get("spielertyp"), "| Typ:", type(row.get("spielertyp"))) 
     spielertyp = str(row.get("spielertyp","—")) if pd.notna(row.get("spielertyp")) else "—"
     age_disp  = str(int(row.get("age"))) if pd.notna(row.get("age")) else "—"
     # 4 Layer scores

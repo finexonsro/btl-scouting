@@ -629,7 +629,7 @@ def make_html_report(row, position, obv_row=None):
     ifi_pct   = float(row.get("pct_score", 50) or 50)
     psv       = float(row.get("sc_psv-99", 0) or 0)
     sf        = row.get("speed_flag", "—")
-    st.write("DEBUG spielertyp:", row.get("spielertyp"), "| Typ:", type(row.get("spielertyp"))) 
+    st.write("DEBUG spielertyp:", row.get("spielertyp"), "| Spalte vorhanden:", "spielertyp" in row.index)  
     spielertyp = str(row.get("spielertyp","—")) if pd.notna(row.get("spielertyp")) else "—"
     age_disp  = str(int(row.get("age"))) if pd.notna(row.get("age")) else "—"
     # 4 Layer scores
@@ -1239,6 +1239,7 @@ with tab1:
                 dl1, dl2, dl3 = st.columns(3)
                 with dl1:
                     obv_r = df[df["name"]==sel_name].iloc[0] if not df[df["name"]==sel_name].empty else None
+                    st.write("DEBUG row vor Aufruf:", "spielertyp" in row.index, row.get("spielertyp") if "spielertyp" in row.index else "FEHLT SCHON HIER") 
                     html_rep = make_html_report(row, pos_row, obv_row=obv_r if (obv_r is not None and pd.notna(obv_r.get("OBV_Total Impact"))) else None)
                     st.download_button("📄 Profil HTML", html_rep.encode("utf-8"),
                         f"Profil_{str(row.get('name','player')).replace(' ','_')}.html",

@@ -1054,6 +1054,7 @@ with tab1:
         if "Final Tier" in disp.columns: styled = styled.map(tier_bg,     subset=["Final Tier"])
         if "IFI Label"  in disp.columns: styled = styled.map(ifi_bg,      subset=["IFI Label"])
         if "PSV-99"     in disp.columns: styled = styled.map(psv_bg,      subset=["PSV-99"])
+        st.write("DEBUG doppelte Spalten:", disp.columns[disp.columns.duplicated()].tolist())
 
         if "BL Level"   in disp.columns: styled = styled.map(bl_level_bg, subset=["BL Level"])
 

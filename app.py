@@ -1742,7 +1742,7 @@ with tab6:
         ifi_min_min = st.slider("Mindestminuten", 0, 3000, 600, 50, key="ifi_min_min")
     with ic5:
         ifi_age = st.slider("Alter", 14, 42, (14, 42), 1, key="ifi_age_range")
-
+    ifi_strict = st.checkbox("🎯 Nur echte Prototypen", value=False, key="ifi_strict")
     def find_col(dframe, name):
         for c in dframe.columns:
             if c.lower() == name.lower():
@@ -1760,6 +1760,7 @@ with tab6:
     if "age" in id_df.columns:
         age_n = pd.to_numeric(id_df["age"], errors="coerce")
         id_df = id_df[(age_n >= ifi_age[0]) & (age_n <= ifi_age[1])]
+    if ifi_strict: id_df = id_df[id_df["spielertyp"] == ifi_role]
     if index_col in id_df.columns:
         id_df = id_df[id_df[index_col].notna()].sort_values(index_col, ascending=False)
 

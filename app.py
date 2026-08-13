@@ -1035,8 +1035,8 @@ with tab1:
             "Burst Pct":    "{:.0f}",
 
         }.items() if k in disp.columns}
-disp = disp.reset_index(drop=True)          # NEU – erzwingt eindeutigen Index vor dem Styling
-styled = disp.style
+        disp = disp.reset_index(drop=True)          # NEU – erzwingt eindeutigen Index vor dem Styling
+        styled = disp.style
         styled = disp.style
         bl_level_bg = lambda v: {
             "🔥 Weit über":  "background-color:#4A1500;color:#FFB380;font-weight:700",

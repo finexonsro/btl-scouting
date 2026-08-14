@@ -1527,6 +1527,9 @@ with tab4:
             index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel")
         st.session_state["obv_player"] = sel_obv
         st.write("DEBUG OBV gefüllt:", df["OBV_Total Impact"].notna().sum(), "von", len(df))
+        st.write("DEBUG sel_obv (exakt):", repr(sel_obv))
+        st.write("DEBUG Namens-Treffer:", (df["name"]==sel_obv).sum())
+        st.write("DEBUG OBV-Werte bei Treffer:", df[df["name"]==sel_obv]["OBV_Total Impact"].tolist())
         row_obv = df[(df["name"] == sel_obv) & (df["OBV_Total Impact"].notna())] 
         if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
             row_o = row_obv.iloc[0]

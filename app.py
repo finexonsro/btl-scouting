@@ -1529,12 +1529,12 @@ with tab4:
         row_obv = df[(df["name"] == sel_obv) & (df["OBV_Total Impact"].notna())] 
         if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
             row_o = row_obv.iloc[0]
-            if row_o.get("obv_small_sample"):
-    st.markdown(f"""<div style='background:#3A2A0A;border-radius:8px;padding:8px 14px;
-        margin-bottom:10px;border-left:3px solid #E8A33D;'>
-        <span style='color:#E8A33D;font-weight:700;font-size:12px'>⚠️ Kleine Stichprobe:</span>
-        <span style='color:#DDD;font-size:12px'> unter 600 Minuten – Werte mit Vorsicht interpretieren</span>
-    </div>""", unsafe_allow_html=True)
+        if row_o.get("obv_small_sample"):
+            st.markdown(f"""<div style='background:#3A2A0A;border-radius:8px;padding:8px 14px;
+            margin-bottom:10px;border-left:3px solid #E8A33D;'>
+            <span style='color:#E8A33D;font-weight:700;font-size:12px'>⚠️ Kleine Stichprobe:</span>
+            <span style='color:#DDD;font-size:12px'> unter 600 Minuten – Werte mit Vorsicht interpretieren</span>
+            </div>""", unsafe_allow_html=True)
             total_impact = int(row_o.get("OBV_Total Impact", 0) or 0)
             impact_p90   = int(row_o.get("OBV_Impact per 90", 0) or 0)
             st.markdown(f"""<div style='background:{C1};border-radius:10px;padding:16px 20px;margin-bottom:16px;border-left:3px solid {ORG}'>

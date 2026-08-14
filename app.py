@@ -1526,7 +1526,7 @@ with tab4:
         sel_obv = st.selectbox("Spieler auswählen", obv_players,
             index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel")
         st.session_state["obv_player"] = sel_obv
-        row_obv = df[df["name"] == sel_obv]
+        row_obv = df[(df["name"] == sel_obv) & (df["OBV_Total Impact"].notna())] 
         if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
             row_o = row_obv.iloc[0]
             total_impact = int(row_o.get("OBV_Total Impact", 0) or 0)

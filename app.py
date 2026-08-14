@@ -1526,19 +1526,15 @@ with tab4:
         sel_obv = st.selectbox("Spieler auswählen", obv_players,
             index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel")
         st.session_state["obv_player"] = sel_obv
-        st.write("DEBUG OBV gefüllt:", df["OBV_Total Impact"].notna().sum(), "von", len(df))
-        st.write("DEBUG sel_obv (exakt):", repr(sel_obv))
-        st.write("DEBUG Namens-Treffer:", (df["name"]==sel_obv).sum())
-        st.write("DEBUG OBV-Werte bei Treffer:", df[df["name"]==sel_obv]["OBV_Total Impact"].tolist())
-        row_obv = df[(df["name"] == sel_obv) & (df["OBV_Total Impact"].notna())] 
+        row_obv = df[(df["name"] == sel_obv) & (df["OBV_Total Impact"].notna())]
         if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
             row_o = row_obv.iloc[0]
-        if row_o.get("obv_small_sample"):
-            st.markdown(f"""<div style='background:#3A2A0A;border-radius:8px;padding:8px 14px;
-            margin-bottom:10px;border-left:3px solid #E8A33D;'>
-            <span style='color:#E8A33D;font-weight:700;font-size:12px'>⚠️ Kleine Stichprobe:</span>
-            <span style='color:#DDD;font-size:12px'> unter 600 Minuten – Werte mit Vorsicht interpretieren</span>
-            </div>""", unsafe_allow_html=True)
+            if row_o.get("obv_small_sample"):
+                st.markdown(f"""<div style='background:#3A2A0A;border-radius:8px;padding:8px 14px;
+                margin-bottom:10px;border-left:3px solid #E8A33D;'>
+                <span style='color:#E8A33D;font-weight:700;font-size:12px'>⚠️ Kleine Stichprobe:</span>
+                <span style='color:#DDD;font-size:12px'> unter 600 Minuten – Werte mit Vorsicht interpretieren</span>
+                </div>""", unsafe_allow_html=True)
             total_impact = int(row_o.get("OBV_Total Impact", 0) or 0)
             impact_p90   = int(row_o.get("OBV_Impact per 90", 0) or 0)
             st.markdown(f"""<div style='background:{C1};border-radius:10px;padding:16px 20px;margin-bottom:16px;border-left:3px solid {ORG}'>
@@ -1546,8 +1542,6 @@ with tab4:
                 <span style='color:#888;font-size:13px;margin-left:12px'>{row_o.get("team","—")} · {row_o.get("liga","—")} · {row_o.get("position","—")}</span>
             </div>""", unsafe_allow_html=True)
             def obv_gauge(val, label, color):
-                # Gauge arc: 20-80 range (matches data distribution)
-                # Number: show real value via annotation since Plotly clips values outside range
                 clamped = max(20, min(80, val))
                 fig = go.Figure(go.Indicator(
                     mode="gauge",
@@ -1589,6 +1583,7 @@ with tab4:
                 font_family="DM Sans",font_color="#AAA",yaxis=dict(range=[0,85],gridcolor="#3A3A3A",zeroline=False,dtick=20),
                 xaxis=dict(gridcolor="rgba(0,0,0,0)"),showlegend=False)
             st.plotly_chart(fig_bar, use_container_width=True)
+        
 
             # ── Kombinierter Report ──────────────────────────────────────────
             st.markdown(f"<div style='color:{ORG};font-size:11px;font-weight:700;letter-spacing:0.12em;margin:20px 0 8px'>📄 KOMBINIERTER REPORT</div>", unsafe_allow_html=True)

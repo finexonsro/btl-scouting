@@ -199,7 +199,10 @@ def load_data():
     if obv_restore:
         df = df.rename(columns={k: v for k, v in obv_restore.items() if k in df.columns})
     has_sc  = df["sc_psv-99"].notna() if "sc_psv-99" in df.columns else pd.Series(False, index=df.index)
-    has_ifi = df["pct_score"].notna()  if "pct_score"  in df.columns else pd.Series(False, index=df.index)
+    # "pct_score" existiert hier nie - wird erst live pro Position in recalc()
+    # berechnet. Stattdessen auf eine echte Context/Radar-Spalte pruefen, die
+    # in JEDER Positionsgruppe vorkommt (siehe POS_CONFIG - "ballprogression").
+    has_ifi = df["pct_ballprogression"].notna() if "pct_ballprogression" in df.columns else pd.Series(False, index=df.index)
     df["datenquelle"] = "unbekannt"
     df.loc[ has_sc &  has_ifi, "datenquelle"] = "vollständig"
     df.loc[ has_sc & ~has_ifi, "datenquelle"] = "nur_physical"
@@ -493,7 +496,7 @@ def recalc(df, weights, position):
         else:
             df["pct_score"] = 50.0
     df["ifi_label"]  = df["pct_score"].apply(ifi_label)
-    df["speed_flag"] = df["sc_peak velocity"].apply(speed_flag) 
+    df["speed_flag"] = df["sc_psv-99"].apply(speed_flag) if "sc_psv-99" in df.columns else df.get("sc_peak velocity", pd.Series(dtype=float)).apply(speed_flag)
     df["final_tier"] = df.apply(lambda r: calc_final_tier(r, r.get("ifi_label","—")), axis=1)
     return df
 

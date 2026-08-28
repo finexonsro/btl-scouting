@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+pd.set_option("styler.render.max_elements", 2_000_000)  # Standardlimit (262144) reicht nicht mehr, seitdem die Datenquelle-Klassifizierung korrekt mehr Spieler erkennt
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
@@ -1043,6 +1044,7 @@ with tab1:
 
         }.items() if k in disp.columns}
         disp = disp.reset_index(drop=True)          # NEU – erzwingt eindeutigen Index vor dem Styling
+        disp = disp.loc[:, ~disp.columns.duplicated()]  # NEU – entfernt doppelte Spaltennamen vor dem Styling (Styler crasht sonst)
         styled = disp.style
         styled = disp.style
         bl_level_bg = lambda v: {

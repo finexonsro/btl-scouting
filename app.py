@@ -123,12 +123,16 @@ TIER_COLORS = {**PROFILE_COLORS, **DATA_BADGE_COLORS,
     "—": "#333333",
 }
 
+# 5 Stufen, gleiche Sprache wie IFI Label/Physical-Fundament (Elite/Strong/Solid/
+# Fair/Weak) - kalibriert gegen TOP-3-DE-Peak-Velocity-Pool (n=1.032), nicht mehr
+# gegen PSV-99 (siehe speed_flag()-Fix unten).
 SPEED_FLAGS = {
-    "⚡ ELITE": "#E8560A",
-    "🔵 HIGH":  "#1565C0",
-    "🟡 FAST":  "#0288D1",
-    "🟠 MEDIUM":"#B84000",
-    "—":        "#444444",
+    "🔥 Elite":  "#E8560A",
+    "✅ Strong": "#27AE60",
+    "🟡 Solid":  "#F0A500",
+    "🔵 Fair":   "#1B6CA8",
+    "⚫ Weak":   "#666666",
+    "—":         "#444444",
 }
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -235,14 +239,19 @@ def load_data():
 df_raw = load_data()
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
-def speed_flag(psv):
+def speed_flag(peak_velocity):
+    """Erwartet TOP-3-Peak-Velocity (nicht PSV-99 - liegt systematisch ~3 km/h
+    niedriger, siehe Session-Fund: die Cutoffs hier waren bereits auf Peak
+    Velocity kalibriert, wurden aber mit dem PSV-99-Rohwert aufgerufen, wodurch
+    fast niemand mehr eine Stufe erreichte). Cutoffs gegen echten Top-3-DE-Pool
+    (n=1.032) berechnet, gleiche 5-Stufen-Sprache wie IFI Label/Physical-Fundament."""
     try:
-        v = float(psv)
-        if v >= 33.5:   return "⚡ ELITE"
-        elif v >= 32.5: return "🔵 HIGH"
-        elif v >= 31.5: return "🟡 FAST"
-        elif v >= 30.5: return "🟠 MEDIUM"
-        else:           return "—"
+        v = float(peak_velocity)
+        if v >= 33.7:   return "🔥 Elite"
+        elif v >= 32.9: return "✅ Strong"
+        elif v >= 32.0: return "🟡 Solid"
+        elif v >= 31.0: return "🔵 Fair"
+        else:           return "⚫ Weak"
     except:
         return "—" 
 
@@ -454,14 +463,7 @@ def physical_tier_from_layers(row):
     lbl = get_btl_profile(s0, b0, o0, p0)
     return lbl, PROFILE_COLORS.get(lbl, "#555")
 
-def bl_level_color(label):
-    return {
-        "🔥 Weit über":  ORG,
-        "✅ BL-Niveau":  "#1B5E20",
-        "🟡 Nah dran":   "#F0A500",
-        "⚫ Darunter":   "#555555",
-        "—":             "#444444",
-    }.get(str(label), "#444444")
+
 
 def calc_final_tier(row, ifi_lbl):
     """Kombiniertes Badge fuer Filter/Tabellen/Scatter-Chart.
@@ -528,7 +530,11 @@ def recalc(df, weights, position):
         else:
             df["pct_score"] = 50.0
     df["ifi_label"]  = df["pct_score"].apply(ifi_label)
-    df["speed_flag"] = df["sc_psv-99"].apply(speed_flag) if "sc_psv-99" in df.columns else df.get("sc_peak velocity", pd.Series(dtype=float)).apply(speed_flag)
+    # Bugfix (Session-Fund): frueher wurde bevorzugt sc_psv-99 genutzt, obwohl die
+    # Cutoffs in speed_flag() bereits auf Peak Velocity kalibriert sind - PSV-99
+    # liegt ~3 km/h niedriger, dadurch blieb das Badge fast immer leer ("—").
+    # Jetzt: sc_peak velocity IMMER bevorzugt, sc_psv-99 nur als Notfall-Fallback.
+    df["speed_flag"] = df["sc_peak velocity"].apply(speed_flag) if "sc_peak velocity" in df.columns else df.get("sc_psv-99", pd.Series(dtype=float)).apply(speed_flag)
     df["final_tier"] = df.apply(lambda r: calc_final_tier(r, r.get("ifi_label","—")), axis=1)
     # Zusaetzlich getrennt verfuegbar (fuer die Spielerkarte, siehe render_player_card):
     # physical_foundation = Weakest-Layer-Tier (Elite/Strong/Solid/Fair/Weak),
@@ -563,30 +569,10 @@ def render_physical_bars(row):
     psv    = float(row.get("sc_peak velocity", 0) or 0) 
     sf     = row.get("speed_flag", "—")
     sf_c   = SPEED_FLAGS.get(sf, "#888")
-    # benchmark_bl/3liga columns kept for backwards compat but not used in display
-    # Using physical score index instead
-
-    # BL Level labels
-    bl_lbl = str(row.get("bl level", "—"))
-    l3_lbl = str(row.get("3l level", "—"))
-    ps_idx    = row.get("physical score",    np.nan)
-    ps_idx_3l = row.get("physical score 3l", np.nan)
-
-    def label_color(lbl):
-        return {"🔥 Top-Athlet": "#FFB380", "✅ BL-Niveau": "#81C784",
-                "✅ 3L-Niveau": "#81C784", "🟡 Nah dran": "#FFCC80",
-                "⚫ Darunter": "#888"}.get(lbl, "#888")
-
-    # BL Median Referenz pro Position (fixe Werte aus der Analyse)
-    BL_MEDIANS = {
-        "Winger": 58.7, "Striker": 56.5, "Midfielder": 58.7,
-        "Fullback": 64.4, "Central Defender": 54.0
-    }
-    pos_row    = row.get("position", "")
-    bl_ref     = BL_MEDIANS.get(pos_row, 60.0)
-
-    bm_html = ""  # removed - replaced by 4 Layer Cards above
-    # Skip the bm section entirely
+    # Altes BL/3L-Level-System entfernt (Session-Fund: kam aus einer unbekannten,
+    # separaten Pipeline mit eigenem Benchmark/eigener Formel, war bereits vorher
+    # tot - bm_html wurde nie gerendert, siehe Kommentar "Skip the bm section
+    # entirely" in der Vorversion).
 
     html += f"""
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #3A3A3A;">
@@ -731,8 +717,10 @@ def make_html_report(row, position, obv_row=None):
         </tr>"""
 
 
-    # Physical score display (kept for backward compat)
-    ps_lbl = "⚡ Speed+Burst (DACH%)"
+    # Physical score display - Label korrigiert (Session-Fund: hiess "Speed+Burst
+    # (DACH%)", zeigt aber tatsaechlich den Weakest-Layer-Score, bereits gegen
+    # Top-3-DE benchmarkt, nicht DACH und nicht nur Speed+Burst)
+    ps_lbl = "⚡ Physical Score"
     ps_abs = abs(ps) if pd.notna(ps) and ps != 0 else 0
     ps_disp = f"{ps_abs:.1f}" if ps_abs > 0 else "—"
 
@@ -894,14 +882,12 @@ with st.sidebar:
         st.warning("Alle deaktiviert")
 
     st.markdown('<div class="div"></div>', unsafe_allow_html=True)
-    sort_options = ["physical score","physical score 3l","sc_psv-99","pct_score","pct_speed","pct_otip","pct_bip","pct_burst","age"]
+    sort_options = ["physical score","sc_psv-99","pct_score","pct_speed","pct_otip","pct_bip","pct_burst","age"]
     sort_options = [c for c in sort_options if c in df_raw.columns]
     sort_col = st.selectbox("Sortieren nach", sort_options,
         format_func=lambda x: {
-            "physical score":    "Speed+Burst (DACH%)",
-            "physical score 3l": "Laufintensität (DACH%)",
-            "bl level":       "BL Level",
-            "sc_psv-99": "PSV-99",
+            "physical score":    "Physical Score",
+                        "sc_psv-99": "PSV-99",
             "pct_score": "IFI Perzentil",
             "pct_speed": "Speed Pct",
             "pct_otip":  "OTIP Pct",
@@ -1010,7 +996,7 @@ with tab1:
     else:
         show_cols = [c for c in [
             "name","team","liga","position","spielertyp","markt","age",
-            "physical score","bl level","final_tier","ifi_label",
+            "physical score","final_tier","ifi_label",
             "speed_flag","sc_psv-99",
             "pct_score","pct_speed","pct_otip","pct_bip","pct_burst",
             
@@ -1025,10 +1011,8 @@ with tab1:
             "spielertyp":     "Spielertyp",
             "markt":          "Markt",
             "age":            "Alter",
-            "physical score":    "Speed+Burst (DACH%)",
-            "physical score 3l": "Laufintensität (DACH%)",
-            "bl level":       "BL Level",
-            "final_tier":     "Final Tier",
+            "physical score":    "Physical Score",
+                        "final_tier":     "Final Tier",
             "ifi_label":      "IFI Label",
             "speed_flag":     "Speed Flag",
             "sc_psv-99":      "PSV-99",
@@ -1092,20 +1076,13 @@ with tab1:
         disp = disp.loc[:, ~disp.columns.duplicated()]  # NEU – entfernt doppelte Spaltennamen vor dem Styling (Styler crasht sonst)
         styled = disp.style
         styled = disp.style
-        bl_level_bg = lambda v: {
-            "🔥 Weit über":  "background-color:#4A1500;color:#FFB380;font-weight:700",
-            "✅ BL-Niveau":  "background-color:#0A1F0A;color:#81C784;font-weight:700",
-            "✅ 3L-Niveau":  "background-color:#0A1F0A;color:#81C784;font-weight:700",
-            "🟡 Nah dran":   "background-color:#2A1A00;color:#FFCC80;font-weight:700",
-            "⚫ Darunter":   "color:#555",
-        }.get(v, "")
+        # bl_level_bg entfernt (Session-Fund: gehoerte zum ausgemusterten BL/3L-
+        # Level-System, siehe render_physical_bars-Kommentar).
 
         speed_only_style = lambda v: "color:#F0A500;font-style:italic" if pd.notna(v) and float(v) < 0 else ""
         if "Final Tier" in disp.columns: styled = styled.map(tier_bg,     subset=["Final Tier"])
         if "IFI Label"  in disp.columns: styled = styled.map(ifi_bg,      subset=["IFI Label"])
         if "PSV-99"     in disp.columns: styled = styled.map(psv_bg,      subset=["PSV-99"])
-
-        if "BL Level"   in disp.columns: styled = styled.map(bl_level_bg, subset=["BL Level"])
 
         styled = styled.format(fmt, na_rep="—")
 
@@ -1217,9 +1194,7 @@ with tab1:
                 with d1:
                     ps_abs   = abs(ps) if pd.notna(ps) and ps != 0 else 0
                     ps_disp  = f"{ps_abs:.1f}" if ps_abs > 0 else "—"
-                    ps_lbl   = "⚡ Speed+Burst (DACH%)" if ps > 0 else "⚡ Speed (DACH%)"
-                    ps_3l    = float(row.get("physical score 3l", 0) or 0)
-                    ps_3l_disp = f"{ps_3l:.1f}" if ps_3l > 0 else "—"
+                    ps_lbl   = "⚡ Physical Score" if ps > 0 else "⚡ Physical Score (nur Speed)"
                     st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
 
                     # ── 4 LAYER CARDS (full width, same as breakdown) ─────
@@ -1348,10 +1323,10 @@ with tab2:
                     pos_str  = " · ".join([f"{p}: {n}" for p, n in pos_dist.items()])
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:12px;">{pos_str or "—"}</div><div class="lbl">Positionen</div></div>', unsafe_allow_html=True)
 
-                show = [c for c in ["name","position","age","physical score","bl level","final_tier","ifi_label","sc_psv-99","speed_flag","spielertyp"] if c in df_v.columns]
+                show = [c for c in ["name","position","age","physical score","final_tier","ifi_label","sc_psv-99","speed_flag","spielertyp"] if c in df_v.columns]
                 st.dataframe(df_v[show].rename(columns={
                     "name":"Spieler","position":"Position","age":"Alter",
-                    "physical score":"Physical Score","bl level":"BL Level","final_tier":"Final Tier","ifi_label":"IFI Label","sc_psv-99":"PSV-99",
+                    "physical score":"Physical Score","final_tier":"Final Tier","ifi_label":"IFI Label","sc_psv-99":"PSV-99",
                     "speed_flag":"Speed Flag","spielertyp":"Spielertyp"
                 }).reset_index(drop=True), use_container_width=True, height=200)
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -1845,56 +1820,47 @@ with tab7:
     with ca:
         st.markdown("### Physical Layer Profile")
         st.markdown("""
-**4 Layer — Belgisches Recruitment-Modell:**
+**4 Layer — No-Weak-Layer-Prinzip** (Inter-Turku-Methodik)
 
-⚡ **SPEED** — Athletic Ceiling  
-PSV-99, Sprint Distance, HSR Distance  
+⚡ **SPEED** — Athletic Ceiling
+TOP 3 Peak Velocity, Sprint Distance P90, HSR Distance P90
 → Maximale Geschwindigkeit & Top-End-Athletik
 
-🚀 **BURST** — Explosive Activation  
-Time to Sprint, Time to HSR, Explosive Acc  
+🚀 **BURST** — Explosive Activation
+Explosive Acceleration to Sprint/HSR Count, TOP 3 Time to Sprint/HSR
 → Explosivität & Zugang zu Höchstgeschwindigkeit
 
-🏃 **OTIP** — Defensive Athleticism  
-Sprint/HSR Dist OTIP, Explosive Acc OTIP  
+🏃 **OTIP** — Defensive Athleticism
+Sprint/HSR Distance OTIP, Explosive Acc. OTIP, Medium/High Deceleration OTIP
 → Defensive Intensität ohne Ball
 
-💥 **BIP** — Active Game Intensity  
-Sprint/HSR Dist BIP, Explosive Acc BIP  
+💥 **BIP** — Active Game Intensity
+Sprint/HSR Distance P60BIP, Explosive Acc. P60BIP
 → Physische Aktivität im aktiven Spielfluss
 
-**Benchmark (wählbar unten in Spielerliste):**
-- **DACH%** = Perzentil vs alle DACH-Spieler pro Position
-- **Top 5** = Vergleich vs Top 5 Ligen Mediane (2025/26)
+**Benchmark:** Top-3-DE (3. Liga + 2. Bundesliga + Bundesliga gepoolt, n≈1.030
+pro Positionsgruppe) — positionsgruppen-intern, da Laufvolumen positionsabhängig
+ist. Physische Ceiling-Werte unterscheiden sich zwischen den drei Ligen kaum
+(Mediane liegen nur 0,1–0,5 km/h auseinander), Pooling verzerrt daher kaum,
+liefert aber eine deutlich robustere Stichprobe.
 
-**Layer Level Labels:**
-🔥 Elite ≥85 | ✅ Stark ≥65 | 🟡 Durchschnitt ≥45 | 🔵 Entwicklung ≥25 | ⚫ Darunter
+**Physical-Fundament** (Weakest-Layer-Score = Minimum der 4 Ebenen):
+Bewusst das Minimum statt ein gewichteter Durchschnitt — eine physische
+Schwachstelle in einer Dimension soll sichtbar bleiben, nicht durch Stärken in
+anderen Ebenen kaschiert werden.
 
-| Komponente | Winger | Striker | MF | FB | IV |
-|---|---|---|---|---|---|
-| ⚡ Speed (PSV-99) | ×2.0 | ×1.0 | ×0.5 | ×1.0 | ×0.5 |
-| 🏃 OTIP (Off-Ball) | ×1.5 | ×1.0 | ×1.5 | ×2.5 | ×2.5 |
-| 💥 BIP (Lauf-Int.) | ×0.5 | ×1.0 | ×1.5 | ×1.5 | ×1.5 |
-| 🚀 Burst (Explo.)  | ×2.0 | ×1.0 | ×2.0 | ×0.5 | ×1.5 |
+🔥 Elite ≥85 | ✅ Strong ≥65 | 🟡 Solid ≥45 | 🔵 Fair ≥25 | ⚫ Weak <25
 
-**⚡ Speed+Burst Score** — athletische BL-Tauglichkeit (DACH-Perzentil, BL-Median ~58-64)
+**Physical-Ausreißer-Profil** (nur wenn tatsächlich verdient):
+- 🔥 Complete Athlete — alle 4 Layer ≥65
+- 🧱 Wrecking Ball — OTIP ≥80 + Burst ≥65
+- ⚡ Speed Demon — Speed ≥85
+- 💪 Work Horse — BIP ≥80 + OTIP ≥65
+- 🚀 Raw Athlete — Burst ≥80 + Speed ≥65
+- 🎯 Specialist — mind. 1 Layer ≥75, aber kein Gesamtprofil
 
-- 🔥 Top-Athlet ≥75 · ✅ BL-Niveau ≥55 · 🟡 Nah dran ≥40 · ⚫ Darunter <40
-- Tiers: ≥75 🔥 ELITE · ≥55 🟢 TOP · ≥40 🔵 INT · ≥25 🟡 WATCHLIST · <25 🔴 RISIKO
-
-| Gewichtung | Winger | Striker | MF | Fullback | IV |
-|---|---|---|---|---|---|
-| ⚡ Speed (PSV-99) | ×2.5 | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
-| 🚀 Burst (Time to Sprint) | ×2.0 | ×1.0 | ×1.0 | ×1.0 | ×2.5 |
-
-**🏃 Laufintensität** — DACH-Perzentil pro Position (kein Liga-Label — Laufintensität ist strukturell liga-unabhängig)
-
-| Gewichtung | Winger | Striker | MF | Fullback | IV |
-|---|---|---|---|---|---|
-| 🏃 OTIP (Sprint+Explo.) | ×1.0 | ×1.0 | ×2.0 | ×3.0 | ×3.0 |
-| 💥 BIP (Sprint+Explo.) | ×1.5 | ×1.0 | ×1.0 | ×1.5 | ×1.0 |
-
-**Methodik:** Sprint Distance + Explosive Accelerations to Sprint (belgische Pro League Scouting-Methode via SkillCorner)
+**Speed Flags** (TOP 3 Peak Velocity, gegen Top-3-DE kalibriert):
+🔥 Elite ≥33,7 km/h | ✅ Strong ≥32,9 | 🟡 Solid ≥32,0 | 🔵 Fair ≥31,0 | ⚫ Weak darunter
         """)
     with cb_:
         st.markdown("### IFI System")
@@ -1915,28 +1881,7 @@ irreführende Aussage gemacht).
 | Top 75% | 🔵 Fair |
 | Rest | ⚫ Weak |
 
-**Speed Flags (absolut, positionsunabhängig):**
-- ⚡ ELITE ≥ 32 km/h
-- 🔵 HIGH ≥ 31 km/h
-- 🟡 FAST ≥ 30 km/h
-- 🟠 MEDIUM ≥ 29 km/h
-
-*(Hinweis: diese Cutoffs sind noch auf das alte PSV-99 kalibriert — Neukalibrierung auf
-TOP-3-Peak-Velocity/Top-3-DE-Benchmark ist ein offener, separater Schritt.)*
-
-**Physical-Fundament (Weakest-Layer-Score, positionsunabhängig):**
-Dieselbe 5-Stufen-Skala wie oben (Elite/Strong/Solid/Fair/Weak) — beschreibt,
-ob eine der 4 Ebenen eine Schwachstelle ist (Minimum aus Speed/Burst/OTIP/BIP).
-
-**Physical-Ausreißer-Profil (nur wenn tatsächlich verdient — sonst kein Badge):**
-- 🔥 **Complete Athlete** — alle 4 Layer ≥65%
-- 🧱 **Wrecking Ball** — OTIP ≥80% + Burst ≥65%
-- ⚡ **Speed Demon** — Speed ≥85%
-- 💪 **Work Horse** — BIP ≥80% + OTIP ≥65%
-- 🚀 **Raw Athlete** — Burst ≥80% + Speed ≥65%
-- 🎯 **Specialist** — mind. 1 Layer ≥75%, aber kein Gesamtprofil (ersetzt "Emerging
-  Talent" — das alte Label suggerierte fälschlich eine Alters-/Entwicklungsaussage,
-  obwohl auch ein erfahrener Spieler mit einem singulären Top-Wert hierunter fällt)
+**Speed Flags:** siehe Physical Layer Profile (links) — dieselbe Top-3-DE-Kalibrierung.
 
 **Kombiniertes Badge (Filter/Tabellen) — Datenverfügbarkeit:**
 - ⬜ **Nur Technik** = kein Physical-Score vorhanden (SkillCorner-Coverage-Lücke), aber IFI Elite/Strong

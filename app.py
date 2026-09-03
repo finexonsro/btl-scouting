@@ -118,8 +118,6 @@ DATA_BADGE_COLORS = {
 TIER_COLORS = {**PROFILE_COLORS, **DATA_BADGE_COLORS,
     "🔥 Elite":  "#E8560A", "✅ Strong": "#27AE60", "🟡 Solid": "#F0A500",
     "🔵 Fair":   "#1B6CA8", "⚫ Weak":   "#555555",
-    "🚀 Raw Athlete + Taktik": "#1B6CA8",
-    "🎯 Specialist + Taktik":  "#666666",
     "—": "#333333",
 }
 
@@ -501,11 +499,11 @@ def calc_final_tier(row, ifi_lbl):
 
     profile_lbl, _   = physical_tier_from_layers(row)
     foundation_lbl, _ = physical_foundation(ps)
-    base_lbl = profile_lbl if profile_lbl else foundation_lbl
-
-    if ifi_strong and profile_lbl in ["🚀 Raw Athlete", "🎯 Specialist"]:
-        return f"{base_lbl} + Taktik"
-    return base_lbl
+    # "+ Taktik"-Suffix entfernt (Session-Fund): war redundant und unklar
+    # benannt - IFI Label steht in Karte/Tabelle ohnehin als eigenes Badge
+    # daneben, der Suffix verdoppelte nur dieselbe Information unter einem
+    # Namen, der wie eine dritte, eigene Dimension klang.
+    return profile_lbl if profile_lbl else foundation_lbl
 
 def recalc(df, weights, position):
     df = df.copy()
@@ -1031,9 +1029,7 @@ with tab1:
             "⚡ Speed Demon":            "background-color:#2A1A00;color:#FFD180;font-weight:700",
             "💪 Work Horse":             "background-color:#0A1F0A;color:#81C784;font-weight:700",
             "🚀 Raw Athlete":            "background-color:#060E22;color:#90CAF9;font-weight:700",
-            "🚀 Raw Athlete + Taktik":   "background-color:#060E22;color:#90CAF9;font-weight:700",
             "🎯 Specialist":             "background-color:#1A1A1A;color:#AAA;font-weight:700",
-            "🎯 Specialist + Taktik":    "background-color:#1A1A1A;color:#AAA;font-weight:700",
             "🔥 Elite":                  "background-color:#4A1500;color:#FFB380;font-weight:700",
             "✅ Strong":                 "background-color:#0A1F0A;color:#81C784;font-weight:700",
             "🟡 Solid":                  "background-color:#2A1A00;color:#FFCC80;font-weight:700",
@@ -1889,7 +1885,6 @@ irreführende Aussage gemacht).
 - Liegen Physical-Daten vor, zeigt das Badge immer das Ausreißer-Profil (falls verdient)
   oder sonst das Physical-Fundament — nie mehr ein reiner "keine Daten"-Platzhalter bei
   vorhandenen, nur durchschnittlichen Werten (früherer Bug, jetzt behoben)
-- 🚀/🎯 **+ Taktik** = zusätzlich IFI Elite/Strong
 
 **Rollenprofile:** Clustering auf allen Ligen (≥500 min) — BL als Qualitätsreferenz
         """)

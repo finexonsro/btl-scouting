@@ -81,29 +81,46 @@ POS_CONFIG = {
 }
 
 # ── LABEL SYSTEMS ─────────────────────────────────────────────────────────────
+# Einheitliche Sprache für IFI Label UND Physical-Fundament - dieselben 5 Stufen,
+# rein qualitätsbeschreibend (kein Alters-/Entwicklungsbezug, da die Formel
+# altersblind ist - siehe Session-Fund: "Development"/"Emerging Talent" wurden
+# bewusst umbenannt, weil sie faelschlich eine Alters-/Reifeaussage suggerierten).
 IFI_LABEL_STYLE = {
-    "ELITE":   ("🔴 ELITE",   "#CC0000", "#FFFFFF"),
-    "STRONG":  ("🟠 STRONG",  "#E8560A", "#FFFFFF"),
-    "AVERAGE": ("🟡 AVERAGE", "#F0A500", "#1A1A1A"),
-    "BELOW":   ("🔵 BELOW",   "#1565C0", "#FFFFFF"),
-    "WEAK":    ("⚫ WEAK",    "#555555", "#AAAAAA"),
+    "ELITE":  ("🔥 Elite",  "#E8560A", "#FFFFFF"),
+    "STRONG": ("✅ Strong", "#27AE60", "#FFFFFF"),
+    "SOLID":  ("🟡 Solid",  "#F0A500", "#1A1A1A"),
+    "FAIR":   ("🔵 Fair",   "#1B6CA8", "#FFFFFF"),
+    "WEAK":   ("⚫ Weak",   "#555555", "#AAAAAA"),
 }
 
-TIER_COLORS = {
-    "🔥 Complete Athlete":      "#E8560A",
-    "🔥 Phys. Elite":           "#B84000",
-    "🧱 Wrecking Ball":         "#CC2229",
-    "⚡ Speed Demon":           "#F0A500",
-    "⚡ Speed Only":            "#B84000",
-    "⚡ Speed + Taktik":        "#B84000",
-    "💪 Work Horse":            "#27AE60",
-    "🚀 Raw Athlete":           "#1B6CA8",
-    "🚀 Raw Athlete + Taktik":  "#1B6CA8",
-    "👀 Emerging Talent":       "#666666",
-    "👀 Emerging + Taktik":     "#666666",
-    "💡 Taktiker":              "#1A237E",
-    "⬜ NUR IFI":               "#333333",
-    "—":                        "#333333",
+# Physical-Ausreißer-Profile: sagen "hat eine physische Sonderfähigkeit",
+# NICHT "hat überhaupt Physical-Daten" (das ist jetzt data_badge, siehe unten).
+# "Specialist" ersetzt "Emerging Talent" (gleicher Grund wie oben).
+PROFILE_COLORS = {
+    "🔥 Complete Athlete": "#E8560A",
+    "🧱 Wrecking Ball":    "#CC2229",
+    "⚡ Speed Demon":      "#F0A500",
+    "💪 Work Horse":       "#27AE60",
+    "🚀 Raw Athlete":      "#1B6CA8",
+    "🎯 Specialist":       "#666666",
+}
+
+# Datenverfügbarkeits-Badge: eigenständig, ersetzt "Taktiker"/"NUR IFI"/
+# "Speed Only" - die waren nur nötig, weil eine einzige Zeichenkette
+# gleichzeitig Profil UND Datenlücke ausdrücken musste.
+DATA_BADGE_COLORS = {
+    "⬜ Nur Technik":  "#1A237E",
+    "⬜ Nur Physical": "#333333",
+}
+
+# TIER_COLORS bleibt als EIN kombiniertes Badge bestehen (fuer Filter, Tabellen,
+# Scatter-Farb-Map an vielen Stellen der App) - Werte jetzt korrekt und umbenannt.
+TIER_COLORS = {**PROFILE_COLORS, **DATA_BADGE_COLORS,
+    "🔥 Elite":  "#E8560A", "✅ Strong": "#27AE60", "🟡 Solid": "#F0A500",
+    "🔵 Fair":   "#1B6CA8", "⚫ Weak":   "#555555",
+    "🚀 Raw Athlete + Taktik": "#1B6CA8",
+    "🎯 Specialist + Taktik":  "#666666",
+    "—": "#333333",
 }
 
 SPEED_FLAGS = {
@@ -230,24 +247,40 @@ def speed_flag(psv):
         return "—" 
 
 def ifi_label(pct):
-    """pct is 0-100"""
+    """pct is 0-100. Interne Keys bleiben ELITE/STRONG/... (fuer Filter-Kompatibilitaet),
+    Anzeige-Text kommt aus IFI_LABEL_STYLE (jetzt: Elite/Strong/Solid/Fair/Weak)."""
     try:
         p = float(pct)
         if p >= 90:  return "ELITE"
         elif p >= 75: return "STRONG"
-        elif p >= 50: return "AVERAGE"
-        elif p >= 25: return "BELOW"
+        elif p >= 50: return "SOLID"
+        elif p >= 25: return "FAIR"
         else:         return "WEAK"
     except:
         return "—"
 
-BL_THRESHOLDS = {
-    "Winger":           {"elite": 85, "bl": 70, "nah": 55, "darunter": 35},
-    "Striker":          {"elite": 80, "bl": 60, "nah": 45, "darunter": 30},
-    "Midfielder":       {"elite": 80, "bl": 65, "nah": 50, "darunter": 35},
-    "Fullback":         {"elite": 80, "bl": 65, "nah": 50, "darunter": 35},
-    "Central Defender": {"elite": 75, "bl": 55, "nah": 40, "darunter": 25},
-}
+# BL_THRESHOLDS entfernt (Session-Fund: positionsspezifische Schwellen wurden auf
+# den Weakest-Layer-Score angewendet, fuer den sie nie kalibriert waren - dadurch
+# bekamen zwei Spieler mit fast identischem Score unterschiedliche Tiers, je nach
+# Position. Ersetzt durch FOUNDATION_LEVELS: universell, positionsunabhaengig.)
+FOUNDATION_LEVELS = [
+    (85, "🔥 Elite",  "#E8560A"),
+    (65, "✅ Strong", "#27AE60"),
+    (45, "🟡 Solid",  "#F0A500"),
+    (25, "🔵 Fair",   "#1B6CA8"),
+    ( 0, "⚫ Weak",   "#666666"),
+]
+
+def physical_foundation(ps):
+    """ps = 'physical score' (Weakest-Layer-Score, 0-100, positionsunabhaengig)."""
+    try:
+        p = float(ps)
+        if np.isnan(p): return "—", "#555"
+        for threshold, label, color in FOUNDATION_LEVELS:
+            if p >= threshold: return label, color
+    except:
+        pass
+    return "—", "#555"
 
 # ── IT-STYLE LAYER FRAMEWORK ─────────────────────────────────────────────────
 LAYER_COLORS_BTL = {
@@ -328,22 +361,28 @@ LAYER_METRICS_BTL = {
     ],
 }
 
+# Einzel-Layer-Badges (z.B. unter Speed/Burst/OTIP/BIP in der Spielerkarte) -
+# dieselbe einheitliche Sprache wie IFI Label und Physical-Fundament.
 LEVEL_LABELS_BTL = [
-    (85, "🔥 Elite",       "#E8560A"),
-    (65, "✅ Stark",        "#27AE60"),
-    (45, "🟡 Durchschnitt","#F0F0F0"),
-    (25, "🔵 Entwicklung", "#1B6CA8"),
-    ( 0, "⚫ Darunter",    "#666"),
+    (85, "🔥 Elite",  "#E8560A"),
+    (65, "✅ Strong", "#27AE60"),
+    (45, "🟡 Solid",  "#F0F0F0"),
+    (25, "🔵 Fair",   "#1B6CA8"),
+    ( 0, "⚫ Weak",   "#666"),
 ]
 
+# Physical-Ausreisser-Profile: sagen "hat eine physische Sonderfaehigkeit",
+# nicht "hat ueberhaupt Physical-Daten". "Specialist" ersetzt "Emerging Talent"
+# (Session-Fund: das Label wurde altersunabhaengig vergeben - ein 32-Jaehriger
+# mit einem singulaeren Elite-Wert bekam faelschlich ein "aufstrebend"-Label).
+# KEIN Catch-all-Eintrag mehr am Ende - siehe get_btl_profile().
 PROFILES_BTL = [
     ("🔥 Complete Athlete",  lambda s,b,o,p: all(x>=65 for x in [s,b,o,p] if pd.notna(x))),
     ("🧱 Wrecking Ball",     lambda s,b,o,p: pd.notna(o) and o>=80 and pd.notna(b) and b>=65),
     ("⚡ Speed Demon",       lambda s,b,o,p: pd.notna(s) and s>=85),
     ("💪 Work Horse",        lambda s,b,o,p: pd.notna(p) and p>=80 and pd.notna(o) and o>=65),
     ("🚀 Raw Athlete",       lambda s,b,o,p: pd.notna(b) and b>=80 and pd.notna(s) and s>=65),
-    ("👀 Emerging Talent",   lambda s,b,o,p: max((x for x in [s,b,o,p] if pd.notna(x)), default=0)>=75),
-    ("—",                    lambda s,b,o,p: True),
+    ("🎯 Specialist",        lambda s,b,o,p: max((x for x in [s,b,o,p] if pd.notna(x)), default=0)>=75),
 ]
 
 def get_layer_scores_btl(row, benchmark="dach"):
@@ -377,11 +416,16 @@ def get_layer_scores_btl(row, benchmark="dach"):
         return scores.get("speed",np.nan), scores.get("burst",np.nan),                scores.get("otip",np.nan),  scores.get("bip",np.nan)
 
 def get_btl_profile(s, b, o, p):
+    """Gibt None zurueck, wenn kein Sonderprofil verdient ist - NICHT '—'.
+    Session-Fund/Bugfix: '—' wurde vorher weiterverarbeitet und faelschlich
+    mit 'keine Physical-Daten vorhanden' verwechselt (der 'Taktiker'-Bug bei
+    Spielern mit vollstaendigen, nur eben durchschnittlichen Physical-Werten).
+    None kann nie mit 'keine Daten' verwechselt werden."""
     for label, fn in PROFILES_BTL:
         try:
             if fn(s, b, o, p): return label
         except: continue
-    return "—"
+    return None
 
 def get_btl_level(pct):
     try:
@@ -391,40 +435,24 @@ def get_btl_level(pct):
     except: pass
     return "—", "#666"
 
+# physical_tier() ENTFERNT (nutzte BL_THRESHOLDS - siehe Notiz oben).
+# Ersetzt durch physical_foundation(ps) (siehe weiter oben, direkt bei
+# FOUNDATION_LEVELS definiert) - identische Signatur (ps, position) wird
+# an den Aufrufstellen weiterhin akzeptiert (position wird jetzt ignoriert),
+# damit keine Aufrufstelle im restlichen Code angepasst werden muss.
 def physical_tier(ps, position=""):
-    """ps: positive = Speed+Burst DACH%, negative = Speed only"""
-    try:
-        p = float(ps)
-        if np.isnan(p) or p == 0: return "—", "#555"
-        if p < 0:
-            return ("⚡ Speed Only", "#B84000") if abs(p) >= 75 else ("⚡ Speed Only", "#F0A500")
-        t = BL_THRESHOLDS.get(position, {"elite":75,"bl":55,"nah":40,"darunter":25})
-        if p >= t["elite"]:      return "🔥 Phys. Elite",   ORG
-        elif p >= t["bl"]:       return "✅ Strong Athlete", "#27AE60"
-        elif p >= t["nah"]:      return "🟡 Avg Athlete",   "#F0A500"
-        elif p >= t["darunter"]: return "🔵 Dev Athlete",   "#1B6CA8"
-        else:                    return "⚫ Below",          "#555"
-    except:
-        return "—", "#555"
+    return physical_foundation(ps)
 
 def physical_tier_from_layers(row):
-    """IT-style profile from 4 layer scores."""
+    """Physical-Ausreisser-Profil aus den 4 Layer-Scores. Gibt (None, Farbe)
+    zurueck, wenn kein Profil verdient ist - siehe get_btl_profile()."""
     s, b, o, p = get_layer_scores_btl(row)
     s0 = s if pd.notna(s) else 0
     b0 = b if pd.notna(b) else 0
     o0 = o if pd.notna(o) else 0
     p0 = p if pd.notna(p) else 0
     lbl = get_btl_profile(s0, b0, o0, p0)
-    colors = {
-        "🔥 Complete Athlete": ORG,
-        "🧱 Wrecking Ball":    "#CC2229",
-        "⚡ Speed Demon":      "#F0A500",
-        "💪 Work Horse":       "#27AE60",
-        "🚀 Raw Athlete":      "#1B6CA8",
-        "👀 Emerging Talent":  "#888",
-        "—":                   "#555",
-    }
-    return lbl, colors.get(lbl, "#555")
+    return lbl, PROFILE_COLORS.get(lbl, "#555")
 
 def bl_level_color(label):
     return {
@@ -436,43 +464,46 @@ def bl_level_color(label):
     }.get(str(label), "#444444")
 
 def calc_final_tier(row, ifi_lbl):
-    """Combined badge: IT-style physical profile + IFI context."""
+    """Kombiniertes Badge fuer Filter/Tabellen/Scatter-Chart.
+
+    Bugfix (Session-Fund): frueher wurde 'kein Sonderprofil verdient' (Catch-all
+    '—' aus get_btl_profile) mit 'keine Physical-Daten vorhanden' verwechselt -
+    ein Spieler mit vollstaendigen, aber durchschnittlichen Physical-Werten
+    (z.B. Michelbach: Speed 64/Burst 61/OTIP 54/BIP 55 - reisst keine der 6
+    Profil-Schwellen) bekam faelschlich 'Taktiker' statt seines tatsaechlichen
+    Fundament-Tiers. Jetzt: hat physische Daten -> zeigt IMMER ein sinnvolles
+    Badge (Profil, wenn verdient, sonst Fundament-Level) - 'Nur Technik' gibt
+    es nur noch, wenn wirklich KEINE Physical-Daten vorliegen (echte
+    SkillCorner-Coverage-Luecke, nicht bloss ein durchschnittlicher Wert).
+
+    'Speed Only' (ps<0 als Verfuegbarkeits-Flag codiert) entfaellt: das war ein
+    Datenqualitaets-Provisorium, das durch die inzwischen vollstaendige
+    4-Layer-Berechnung nicht mehr vorkommen sollte - falls doch, faellt es
+    jetzt sauber in den 'keine Physical-Daten'-Zweig statt einen eigenen
+    Sonderfall zu brauchen.
+    """
     ps = row.get("physical score", np.nan)
     try:
         ps_val       = float(ps)
         has_physical = not np.isnan(ps_val) and ps_val > 0
-        has_speed    = not np.isnan(ps_val) and ps_val < 0
     except:
-        has_physical = has_speed = False
+        has_physical = False
 
     has_ifi    = pd.notna(row.get("pct_score", np.nan))
-    has_layers = pd.notna(row.get("pct_speed_global", np.nan))
-    ifi_strong = ifi_lbl in ["ELITE","STRONG"]
+    ifi_strong = ifi_lbl in ["ELITE", "STRONG"]
 
-    if not has_physical and not has_speed and not has_ifi:
+    if not has_physical and not has_ifi:
         return "—"
-    if not has_physical and not has_speed:
-        return "💡 Taktiker" if ifi_strong else "⬜ NUR IFI"
-    if has_speed:
-        sp = abs(float(ps))
-        if sp >= 75 and ifi_strong: return "⚡ Speed + Taktik"
-        if sp >= 75:                return "⚡ Speed Only"
-        return "💡 Taktiker" if ifi_strong else "⬜ NUR IFI"
+    if not has_physical:
+        return "⬜ Nur Technik" if ifi_strong else "⬜ Nur Physical"
 
-    if has_layers:
-        phys_lbl, _ = physical_tier_from_layers(row)
-    else:
-        phys_lbl = "👀 Emerging Talent"
+    profile_lbl, _   = physical_tier_from_layers(row)
+    foundation_lbl, _ = physical_foundation(ps)
+    base_lbl = profile_lbl if profile_lbl else foundation_lbl
 
-    if phys_lbl == "👀 Emerging Talent" and ifi_strong:
-        return "👀 Emerging + Taktik"
-    if phys_lbl == "🚀 Raw Athlete" and ifi_strong:
-        return "🚀 Raw Athlete + Taktik"
-    if phys_lbl in ["—"] and ifi_strong:
-        return "💡 Taktiker"
-    if phys_lbl == "—":
-        return "⬜ NUR IFI"
-    return phys_lbl
+    if ifi_strong and profile_lbl in ["🚀 Raw Athlete", "🎯 Specialist"]:
+        return f"{base_lbl} + Taktik"
+    return base_lbl
 
 def recalc(df, weights, position):
     df = df.copy()
@@ -499,6 +530,11 @@ def recalc(df, weights, position):
     df["ifi_label"]  = df["pct_score"].apply(ifi_label)
     df["speed_flag"] = df["sc_psv-99"].apply(speed_flag) if "sc_psv-99" in df.columns else df.get("sc_peak velocity", pd.Series(dtype=float)).apply(speed_flag)
     df["final_tier"] = df.apply(lambda r: calc_final_tier(r, r.get("ifi_label","—")), axis=1)
+    # Zusaetzlich getrennt verfuegbar (fuer die Spielerkarte, siehe render_player_card):
+    # physical_foundation = Weakest-Layer-Tier (Elite/Strong/Solid/Fair/Weak),
+    # physical_profile = Sonderprofil oder None (kein Catch-all mehr).
+    df["physical_foundation"] = df.get("physical score", pd.Series(dtype=float)).apply(lambda x: physical_foundation(x)[0])
+    df["physical_profile"]    = df.apply(lambda r: physical_tier_from_layers(r)[0], axis=1)
     return df
 
 # ── PHYSICAL BARS ─────────────────────────────────────────────────────────────
@@ -912,7 +948,14 @@ st.markdown('<div class="div" style="margin:10px 0 16px;"></div>', unsafe_allow_
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 kpi_cols = st.columns(6)
-elite_top = len(df_f[df_f.get("final_tier", pd.Series(dtype=str)).isin(["🔥 Komplettpaket","⚡ Physisches Talent","🏃 Athlet","🧠 Taktisch stark","🔥 ELITE TARGET","🟢 TOP TARGET"])]) if "final_tier" in df_f.columns else 0
+# Bugfix (Session-Fund): verwies auf Tier-Namen aus einer aelteren, nicht mehr
+# existierenden Beschriftung ("Komplettpaket" etc.) - dieser Zaehler stand
+# deshalb permanent auf 0, unabhaengig vom Filter. Jetzt: Spieler mit einem
+# verdienten Physical-Ausreisser-Profil UND Elite-IFI-Wert.
+elite_top = len(df_f[
+    df_f.get("physical_profile", pd.Series(dtype=str)).isin(list(PROFILE_COLORS.keys()))
+    & (df_f.get("ifi_label", pd.Series(dtype=str)) == "ELITE")
+]) if "physical_profile" in df_f.columns else 0
 ifi_elite = len(df_f[df_f.get("ifi_label", pd.Series(dtype=str)) == "ELITE"]) if "ifi_label" in df_f.columns else 0
 max_psv   = f'{df_f["sc_psv-99"].max():.2f}' if "sc_psv-99" in df_f.columns and len(df_f) > 0 else "—"
 max_ps    = f'{df_f[df_f["physical score"] > 0]["physical score"].max():.1f}' if "physical score" in df_f.columns and (df_f["physical score"] > 0).any() else "—"
@@ -997,29 +1040,31 @@ with tab1:
 
         })
 
-        # Styling functions
+        # Styling functions (Namen aktualisiert - siehe TIER_COLORS/IFI_LABEL_STYLE)
         tier_bg = lambda v: {
-            "🔥 Complete Athlete":      "background-color:#4A1500;color:#FFB380;font-weight:700",
-            "🔥 Phys. Elite":           "background-color:#3A1000;color:#FFB380;font-weight:700",
-            "🧱 Wrecking Ball":         "background-color:#3A0005;color:#FF8A80;font-weight:700",
-            "⚡ Speed Demon":           "background-color:#2A1A00;color:#FFD180;font-weight:700",
-            "⚡ Speed Only":            "background-color:#2A1A00;color:#FFD180;font-weight:700",
-            "⚡ Speed + Taktik":        "background-color:#2A1A00;color:#FFD180;font-weight:700",
-            "💪 Work Horse":            "background-color:#0A1F0A;color:#81C784;font-weight:700",
-            "🚀 Raw Athlete":           "background-color:#060E22;color:#90CAF9;font-weight:700",
-            "🚀 Raw Athlete + Taktik":  "background-color:#060E22;color:#90CAF9;font-weight:700",
-            "👀 Emerging Talent":       "background-color:#1A1A1A;color:#AAA;font-weight:700",
-            "👀 Emerging + Taktik":     "background-color:#1A1A1A;color:#AAA;font-weight:700",
-            "💡 Taktiker":              "background-color:#0A0A2A;color:#B39DDB;font-weight:700",
-            "⬜ NUR IFI":              "background-color:#222;color:#AAA;font-weight:700",
+            "🔥 Complete Athlete":       "background-color:#4A1500;color:#FFB380;font-weight:700",
+            "🧱 Wrecking Ball":          "background-color:#3A0005;color:#FF8A80;font-weight:700",
+            "⚡ Speed Demon":            "background-color:#2A1A00;color:#FFD180;font-weight:700",
+            "💪 Work Horse":             "background-color:#0A1F0A;color:#81C784;font-weight:700",
+            "🚀 Raw Athlete":            "background-color:#060E22;color:#90CAF9;font-weight:700",
+            "🚀 Raw Athlete + Taktik":   "background-color:#060E22;color:#90CAF9;font-weight:700",
+            "🎯 Specialist":             "background-color:#1A1A1A;color:#AAA;font-weight:700",
+            "🎯 Specialist + Taktik":    "background-color:#1A1A1A;color:#AAA;font-weight:700",
+            "🔥 Elite":                  "background-color:#4A1500;color:#FFB380;font-weight:700",
+            "✅ Strong":                 "background-color:#0A1F0A;color:#81C784;font-weight:700",
+            "🟡 Solid":                  "background-color:#2A1A00;color:#FFCC80;font-weight:700",
+            "🔵 Fair":                   "background-color:#060E22;color:#90CAF9;font-weight:700",
+            "⚫ Weak":                   "color:#555",
+            "⬜ Nur Technik":            "background-color:#0A0A2A;color:#B39DDB;font-weight:700",
+            "⬜ Nur Physical":           "background-color:#222;color:#AAA;font-weight:700",
         }.get(v, "")
 
         ifi_bg = lambda v: {
-            "ELITE":   "background-color:#4A1500;color:#FFB380;font-weight:700",
-            "STRONG":  "background-color:#2A1200;color:#FFCC80;font-weight:700",
-            "AVERAGE": "background-color:#1A1A00;color:#FFF59D",
-            "BELOW":   "background-color:#060E22;color:#90CAF9",
-            "WEAK":    "color:#555",
+            "ELITE":  "background-color:#4A1500;color:#FFB380;font-weight:700",
+            "STRONG": "background-color:#0A1F0A;color:#81C784;font-weight:700",
+            "SOLID":  "background-color:#2A1200;color:#FFCC80;font-weight:700",
+            "FAIR":   "background-color:#060E22;color:#90CAF9",
+            "WEAK":   "color:#555",
         }.get(v, "")
 
         psv_bg = lambda v: ("" if pd.isna(v) else
@@ -1403,7 +1448,7 @@ with tab3:
         for _, row in sc_filtered.iterrows():
             s,b,o,p = get_layer_scores_btl(row)
             ifi = row.get("pct_score", np.nan)
-            prof_lbl = get_btl_profile(s,b,o,p)
+            prof_lbl = get_btl_profile(s,b,o,p) or "—"  # Anzeige: None -> "—"
             disp_rows.append({
                 "Spieler":      row.get("name","—"),
                 "Team":         row.get("team","—"),
@@ -1856,13 +1901,19 @@ Sprint/HSR Dist BIP, Explosive Acc BIP
         st.markdown("""
 Peer-Perzentil der IFI-Attribute pro Position + Liga.
 
+Einheitliche 5-Stufen-Sprache — dieselbe Skala gilt für IFI Label UND für das
+Physical-Fundament (siehe unten). Bewusst rein qualitätsbeschreibend, ohne
+Alters-/Entwicklungsbezug (die Formel prüft kein Alter — "Development" hätte
+für einen erfahrenen wie einen jungen Spieler mit demselben Perzentil dieselbe,
+irreführende Aussage gemacht).
+
 | Perzentil | Label |
 |---|---|
-| Top 10% | 🔴 ELITE |
-| Top 25% | 🟠 STRONG |
-| Top 50% | 🟡 AVERAGE |
-| Top 75% | 🔵 BELOW |
-| Rest | ⚫ WEAK |
+| Top 10% | 🔥 Elite |
+| Top 25% | ✅ Strong |
+| Top 50% | 🟡 Solid |
+| Top 75% | 🔵 Fair |
+| Rest | ⚫ Weak |
 
 **Speed Flags (absolut, positionsunabhängig):**
 - ⚡ ELITE ≥ 32 km/h
@@ -1870,20 +1921,30 @@ Peer-Perzentil der IFI-Attribute pro Position + Liga.
 - 🟡 FAST ≥ 30 km/h
 - 🟠 MEDIUM ≥ 29 km/h
 
-**Kombiniertes Header-Label:**
-**Physical Profile (aus 4 Layern):**
-- 🔥 **Complete Athlete** — alle 4 Layer ≥65%
-- 🧱 **Wrecking Ball** — OTIP ≥85% + Burst ≥65%
-- ⚡ **Speed Demon** — Speed ≥85%
-- 💪 **Work Horse** — BIP ≥85% + OTIP ≥65%
-- 🚀 **Raw Athlete** — Burst ≥85% + Speed ≥65%
-- 👀 **Emerging Talent** — mind. 1 Layer ≥75%
+*(Hinweis: diese Cutoffs sind noch auf das alte PSV-99 kalibriert — Neukalibrierung auf
+TOP-3-Peak-Velocity/Top-3-DE-Benchmark ist ein offener, separater Schritt.)*
 
-**IFI-Kontext (bei Emerging & Raw):**
-- 🚀 Raw Athlete + Taktik = Raw Athlete + IFI Elite/Strong
-- 👀 Emerging + Taktik = Emerging + IFI Elite/Strong
-- 💡 Taktiker = Kein Physical Score + IFI Elite/Strong
-- ⚡ Speed Only / Speed + Taktik = nur Speed-Daten verfügbar
+**Physical-Fundament (Weakest-Layer-Score, positionsunabhängig):**
+Dieselbe 5-Stufen-Skala wie oben (Elite/Strong/Solid/Fair/Weak) — beschreibt,
+ob eine der 4 Ebenen eine Schwachstelle ist (Minimum aus Speed/Burst/OTIP/BIP).
+
+**Physical-Ausreißer-Profil (nur wenn tatsächlich verdient — sonst kein Badge):**
+- 🔥 **Complete Athlete** — alle 4 Layer ≥65%
+- 🧱 **Wrecking Ball** — OTIP ≥80% + Burst ≥65%
+- ⚡ **Speed Demon** — Speed ≥85%
+- 💪 **Work Horse** — BIP ≥80% + OTIP ≥65%
+- 🚀 **Raw Athlete** — Burst ≥80% + Speed ≥65%
+- 🎯 **Specialist** — mind. 1 Layer ≥75%, aber kein Gesamtprofil (ersetzt "Emerging
+  Talent" — das alte Label suggerierte fälschlich eine Alters-/Entwicklungsaussage,
+  obwohl auch ein erfahrener Spieler mit einem singulären Top-Wert hierunter fällt)
+
+**Kombiniertes Badge (Filter/Tabellen) — Datenverfügbarkeit:**
+- ⬜ **Nur Technik** = kein Physical-Score vorhanden (SkillCorner-Coverage-Lücke), aber IFI Elite/Strong
+- ⬜ **Nur Physical** = kein IFI-Radar-Match vorhanden
+- Liegen Physical-Daten vor, zeigt das Badge immer das Ausreißer-Profil (falls verdient)
+  oder sonst das Physical-Fundament — nie mehr ein reiner "keine Daten"-Platzhalter bei
+  vorhandenen, nur durchschnittlichen Werten (früherer Bug, jetzt behoben)
+- 🚀/🎯 **+ Taktik** = zusätzlich IFI Elite/Strong
 
 **Rollenprofile:** Clustering auf allen Ligen (≥500 min) — BL als Qualitätsreferenz
         """)

@@ -218,7 +218,7 @@ def load_data():
     # Re-apply OBV original case
     if obv_restore:
         df = df.rename(columns={k: v for k, v in obv_restore.items() if k in df.columns})
-    has_sc  = df["sc_psv-99"].notna() if "sc_psv-99" in df.columns else pd.Series(False, index=df.index)
+    has_sc  = df["sc_peak velocity"].notna() if "sc_peak velocity" in df.columns else pd.Series(False, index=df.index)
     # "pct_score" existiert hier nie - wird erst live pro Position in recalc()
     # berechnet. Stattdessen auf eine echte Context/Radar-Spalte pruefen, die
     # in JEDER Positionsgruppe vorkommt (siehe POS_CONFIG - "ballprogression").
@@ -311,59 +311,30 @@ LAYER_DESC_BTL = {
     "bip":   "Active Game Intensity",
 }
 
-# ── Top 5 Mediane (aus IT-Datensatz 2025/26) ─────────────────────────────────
-TOP5_MEDIANS = {
-    "Winger": {
-        "speed": {"sc_psv-99": 29.545, "sc_sprint distance p60bip": 278.39, "sc_hsr distance p60bip": 756.31},
-        "burst": {"sc_top 3 time to sprint": 1.30, "sc_top 3 time to hsr": 0.67, "sc_explosive acceleration to sprint count p60bip": 1.53},
-        "otip":  {"sc_sprint distance otip p30otip": 109.59, "sc_hsr distance otip p30otip": 367.05, "sc_explosive acceleration to sprint count otip p30otip": 0.48},
-        "bip":   {"sc_sprint distance p60bip": 278.39, "sc_hsr distance p60bip": 756.31, "sc_explosive acceleration to sprint count p60bip": 1.53},
-    },
-    "Striker": {
-        "speed": {"sc_psv-99": 29.275, "sc_sprint distance p60bip": 241.19, "sc_hsr distance p60bip": 682.93},
-        "burst": {"sc_top 3 time to sprint": 1.33, "sc_top 3 time to hsr": 0.67, "sc_explosive acceleration to sprint count p60bip": 1.31},
-        "otip":  {"sc_sprint distance otip p30otip": 89.34, "sc_hsr distance otip p30otip": 318.09, "sc_explosive acceleration to sprint count otip p30otip": 0.37},
-        "bip":   {"sc_sprint distance p60bip": 241.19, "sc_hsr distance p60bip": 682.93, "sc_explosive acceleration to sprint count p60bip": 1.31},
-    },
-    "Midfielder": {
-        "speed": {"sc_psv-99": 27.90, "sc_sprint distance p60bip": 173.47, "sc_hsr distance p60bip": 716.82},
-        "burst": {"sc_top 3 time to sprint": 1.42, "sc_top 3 time to hsr": 0.70, "sc_explosive acceleration to sprint count p60bip": 0.40},
-        "otip":  {"sc_sprint distance otip p30otip": 93.88, "sc_hsr distance otip p30otip": 409.66, "sc_explosive acceleration to sprint count otip p30otip": 0.18},
-        "bip":   {"sc_sprint distance p60bip": 173.47, "sc_hsr distance p60bip": 716.82, "sc_explosive acceleration to sprint count p60bip": 0.40},
-    },
-    "Fullback": {
-        "speed": {"sc_psv-99": 29.68, "sc_sprint distance p60bip": 268.17, "sc_hsr distance p60bip": 693.15},
-        "burst": {"sc_top 3 time to sprint": 1.28, "sc_top 3 time to hsr": 0.65, "sc_explosive acceleration to sprint count p60bip": 1.625},
-        "otip":  {"sc_sprint distance otip p30otip": 133.52, "sc_hsr distance otip p30otip": 391.57, "sc_explosive acceleration to sprint count otip p30otip": 0.84},
-        "bip":   {"sc_sprint distance p60bip": 268.17, "sc_hsr distance p60bip": 693.15, "sc_explosive acceleration to sprint count p60bip": 1.625},
-    },
-    "Central Defender": {
-        "speed": {"sc_psv-99": 28.885, "sc_sprint distance p60bip": 134.72, "sc_hsr distance p60bip": 427.34},
-        "burst": {"sc_top 3 time to sprint": 1.35, "sc_top 3 time to hsr": 0.69, "sc_explosive acceleration to sprint count p60bip": 0.67},
-        "otip":  {"sc_sprint distance otip p30otip": 100.64, "sc_hsr distance otip p30otip": 300.05, "sc_explosive acceleration to sprint count otip p30otip": 0.535},
-        "bip":   {"sc_sprint distance p60bip": 134.72, "sc_hsr distance p60bip": 427.34, "sc_explosive acceleration to sprint count p60bip": 0.67},
-    },
-}
+# TOP5_MEDIANS entfernt (Session-Fund: zweites, paralleles Benchmark-System mit
+# fest hinterlegten Medianen, unabhaengig vom dokumentierten, gepoolten
+# Top-3-DE-Ansatz - auf Nutzerentscheidung hin komplett ausgemustert, wie zuvor
+# schon das BL/3L-Level-System).
 
 # Metriken pro Layer (BTL Spaltenname → Label, höher=besser)
 LAYER_METRICS_BTL = {
     "speed": [
-        ("pct_speed_global",      "PSV-99 (DACH%)",         True),
+        ("pct_speed_global",      "Speed (Top-3-DE%)",         True),
         ("pct_sprintdist_global", "Sprint Dist P60BIP",      True),
         ("pct_hsrdist_global",    "HSR Dist P60BIP",         True),
     ],
     "burst": [
-        ("pct_burst_global",      "Time to Sprint (DACH%)",  True),
-        ("pct_timetohsr_global",  "Time to HSR (DACH%)",     True),
+        ("pct_burst_global",      "Burst (Top-3-DE%)",  True),
+        ("pct_timetohsr_global",  "Burst - Time to HSR (Top-3-DE%)",     True),
         ("pct_expaccbip_global",  "Exp Acc Sprint BIP",      True),
     ],
     "otip": [
-        ("pct_otip_global",       "OTIP Raw (DACH%)",        True),
+        ("pct_otip_global",       "OTIP (Top-3-DE%)",        True),
         ("pct_hsr dist otip_global","HSR Dist OTIP",         True),
         ("pct_expaccotip_global", "Exp Acc Sprint OTIP",     True),
     ],
     "bip": [
-        ("pct_bip_global",        "BIP Raw (DACH%)",         True),
+        ("pct_bip_global",        "BIP (Top-3-DE%)",         True),
         ("pct_expaccbip_global",  "Exp Acc Sprint BIP",      True),
     ],
 }
@@ -393,34 +364,16 @@ PROFILES_BTL = [
 ]
 
 def get_layer_scores_btl(row, benchmark="dach"):
-    """Get 4 layer scores.
-    benchmark='dach' uses global DACH percentiles from CSV.
-    benchmark='top5' calculates percentile vs Top5 medians."""
-    if benchmark == "dach":
-        def _get(col):
-            try: return float(row.get(col, np.nan))
-            except: return np.nan
-        return _get("pct_speed_global"), _get("pct_burst_global"),                _get("pct_otip_global"),  _get("pct_bip_global")
-    else:
-        # vs Top 5: compare raw metrics to Top5 medians
-        pos = row.get("position", "Winger")
-        t5m = TOP5_MEDIANS.get(pos, TOP5_MEDIANS["Winger"])
-        scores = {}
-        for layer, metrics in t5m.items():
-            pcts = []
-            for col, median in metrics.items():
-                val = row.get(col, np.nan)
-                try: val = float(val)
-                except: val = np.nan
-                if pd.isna(val) or median == 0: continue
-                # Time metrics: lower=better
-                if "time" in col.lower():
-                    pct = (1 - val/median) * 50 + 50  # 50 = on median
-                else:
-                    pct = (val/median) * 50  # 50 = on median
-                pcts.append(min(max(pct, 0), 100))
-            scores[layer] = round(np.mean(pcts), 1) if pcts else np.nan
-        return scores.get("speed",np.nan), scores.get("burst",np.nan),                scores.get("otip",np.nan),  scores.get("bip",np.nan)
+    """Get 4 layer scores gegen den dokumentierten Top-3-DE-Benchmark (pct_*_global
+    Spalten, bereits in der Pipeline berechnet - "dach" ist nur der interne
+    Legacy-Name der Spalten, inhaltlich ist es Top-3-DE, siehe Framework-Doku
+    Kapitel 8). 'benchmark'-Parameter bleibt aus Kompatibilitaet zu bestehenden
+    Aufrufstellen erhalten, wird aber nicht mehr ausgewertet - die Top5-Median-
+    Alternative wurde auf Nutzerentscheidung hin komplett entfernt."""
+    def _get(col):
+        try: return float(row.get(col, np.nan))
+        except: return np.nan
+    return _get("pct_speed_global"), _get("pct_burst_global"), _get("pct_otip_global"), _get("pct_bip_global")
 
 def get_btl_profile(s, b, o, p):
     """Gibt None zurueck, wenn kein Sonderprofil verdient ist - NICHT '—'.
@@ -651,7 +604,7 @@ def make_html_report(row, position, obv_row=None):
     final_tier_l = row.get("final_tier", pt_l) or pt_l
     t_bg      = TIER_COLORS.get(final_tier_l, TIER_COLORS.get(pt_l, "#333"))
     ifi_pct   = float(row.get("pct_score", 50) or 50)
-    psv       = float(row.get("sc_psv-99", 0) or 0)
+    psv       = float(row.get("sc_peak velocity", 0) or 0)
     sf        = row.get("speed_flag", "—") 
     spielertyp = str(row.get("spielertyp","—")) if pd.notna(row.get("spielertyp")) else "—"
     age_disp  = str(int(row.get("age"))) if pd.notna(row.get("age")) else "—"
@@ -794,10 +747,10 @@ table{{width:100%;border-collapse:collapse;}}
     </div>
     <div class="badge">{final_tier_l}</div>
 </div>
-<div class="section"><h2>⚡ Physical Layer Profile (DACH%)</h2></div>
+<div class="section"><h2>⚡ Physical Layer Profile (Top-3-DE)</h2></div>
 <div class="layer-grid">{layer_cards_html}</div>
 <div class="ifi-grid">
-    <div class="card"><div class="val">{psv:.2f} km/h</div><div class="lbl">PSV-99</div></div>
+    <div class="card"><div class="val">{psv:.2f} km/h</div><div class="lbl">Peak Velocity</div></div>
     <div class="card"><div class="val">{sf}</div><div class="lbl">Speed Flag</div></div>
     <div class="card"><div class="val" style="color:{ic};">{em}</div><div class="lbl">IFI Label · {ifi_pct:.0f}%</div></div>
 </div>
@@ -832,14 +785,16 @@ with st.sidebar:
         sel_markt = st.multiselect("Markt", maerkte, default=maerkte)
     else:
         sel_markt = []
-    # Datenquelle filter
+    # Datenquelle filter - Namen an final_tier angeglichen (Session-Fund: nutzte
+    # vorher "Nur IFI" + gleiches 🎯-Emoji wie jetzt "Specialist" im Final Tier -
+    # beides verwirrend/inkonsistent).
     sel_src = st.multiselect("Datenquelle",
         ["vollständig","nur_physical","nur_ifi"],
         default=["vollständig","nur_physical","nur_ifi"],
         format_func=lambda x: {
             "vollständig":  "✅ Vollständig (SC + IFI)",
-            "nur_physical": "⚡ Nur Physical (kein IFI)",
-            "nur_ifi":      "🎯 Nur IFI (kein SC-Match)"
+            "nur_physical": "⬜ Nur Physical (kein IFI)",
+            "nur_ifi":      "⬜ Nur Technik (kein SC-Match)"
         }.get(x, x))
 
     if "liga" in df_raw.columns:
@@ -848,7 +803,12 @@ with st.sidebar:
     else:
         sel_ligen = []
 
-    psv_min = st.slider("PSV-99 Minimum (km/h)", 0.0, 33.0, 0.0, 0.5, format="%.1f")
+    # Bugfix (Session-Fund): filterte vorher auf sc_psv-99 (systematisch ~3 km/h
+    # niedriger als Peak Velocity) mit einem auf 33.0 gedeckelten Slider - echte
+    # Peak-Velocity-Werte reichen bis 36,6 km/h, waeren also nie vollstaendig
+    # waehlbar gewesen. Jetzt konsistent mit Speed-Flag-Fix: sc_peak velocity.
+    speed_max = float(df_raw["sc_peak velocity"].max()) if "sc_peak velocity" in df_raw.columns else 37.0
+    speed_min = st.slider("Peak Velocity Minimum (km/h)", 0.0, round(speed_max + 0.5, 1), 0.0, 0.5, format="%.1f")
 
     age_col = "age" if "age" in df_raw.columns else None
     if age_col:
@@ -880,12 +840,12 @@ with st.sidebar:
         st.warning("Alle deaktiviert")
 
     st.markdown('<div class="div"></div>', unsafe_allow_html=True)
-    sort_options = ["physical score","sc_psv-99","pct_score","pct_speed","pct_otip","pct_bip","pct_burst","age"]
+    sort_options = ["physical score","sc_peak velocity","pct_score","pct_speed","pct_otip","pct_bip","pct_burst","age"]
     sort_options = [c for c in sort_options if c in df_raw.columns]
     sort_col = st.selectbox("Sortieren nach", sort_options,
         format_func=lambda x: {
             "physical score":    "Physical Score",
-                        "sc_psv-99": "PSV-99",
+            "sc_peak velocity":  "Peak Velocity",
             "pct_score": "IFI Perzentil",
             "pct_speed": "Speed Pct",
             "pct_otip":  "OTIP Pct",
@@ -908,8 +868,8 @@ if sel_markt and "markt" in df.columns:
     mask = mask & df["markt"].isin(sel_markt)
 if sel_src and "datenquelle" in df.columns:
     mask = mask & df["datenquelle"].isin(sel_src)
-if "sc_psv-99" in df.columns:
-    mask = mask & ((pd.to_numeric(df["sc_psv-99"], errors="coerce") >= psv_min) | df["sc_psv-99"].isna())
+if "sc_peak velocity" in df.columns:
+    mask = mask & ((pd.to_numeric(df["sc_peak velocity"], errors="coerce") >= speed_min) | df["sc_peak velocity"].isna())
 if age_col and age_col in df.columns:
     mask = mask & (df[age_col] >= ar[0]) & (df[age_col] <= ar[1])
 if min_col and min_col in df.columns:
@@ -941,14 +901,14 @@ elite_top = len(df_f[
     & (df_f.get("ifi_label", pd.Series(dtype=str)) == "ELITE")
 ]) if "physical_profile" in df_f.columns else 0
 ifi_elite = len(df_f[df_f.get("ifi_label", pd.Series(dtype=str)) == "ELITE"]) if "ifi_label" in df_f.columns else 0
-max_psv   = f'{df_f["sc_psv-99"].max():.2f}' if "sc_psv-99" in df_f.columns and len(df_f) > 0 else "—"
+max_psv   = f'{df_f["sc_peak velocity"].max():.2f}' if "sc_peak velocity" in df_f.columns and len(df_f) > 0 else "—"
 max_ps    = f'{df_f[df_f["physical score"] > 0]["physical score"].max():.1f}' if "physical score" in df_f.columns and (df_f["physical score"] > 0).any() else "—"
 med_age   = f'{int(df_f["age"].median())}' if "age" in df_f.columns and len(df_f) > 0 else "—"
 kpis = [
     (len(df_f),  "Spieler gesamt"),
     (elite_top,  "Elite + Top"),
-    (ifi_elite,  "IFI Elite 🔴"),
-    (max_psv,    "Höchste PSV-99"),
+    (ifi_elite,  "IFI Elite 🔥"),
+    (max_psv,    "Höchste Peak Velocity"),
     (max_ps,     "Bester Physical"),
     (med_age,    "Median Alter"),
 ]
@@ -995,7 +955,7 @@ with tab1:
         show_cols = [c for c in [
             "name","team","liga","position","spielertyp","markt","age",
             "physical score","final_tier","ifi_label",
-            "speed_flag","sc_psv-99",
+            "speed_flag","sc_peak velocity",
             "pct_score","pct_speed","pct_otip","pct_bip","pct_burst",
             
         ] if c in df_display.columns]
@@ -1013,7 +973,7 @@ with tab1:
                         "final_tier":     "Final Tier",
             "ifi_label":      "IFI Label",
             "speed_flag":     "Speed Flag",
-            "sc_psv-99":      "PSV-99",
+            "sc_peak velocity": "Peak Velocity",
             "pct_score":      "IFI Pct",
             "pct_speed":      "Speed Pct",
             "pct_otip":       "OTIP Pct",
@@ -1058,7 +1018,7 @@ with tab1:
             "color:#EF9A9A;font-weight:600" if v < 0 else "")
 
         fmt = {k: v for k, v in {
-            "PSV-99":       "{:.2f}",
+            "Peak Velocity": "{:.2f}",
             "Physical Score (vs BL)": "{:.1f}",
             "Physical Score (vs 3.Liga)": "{:.1f}",
             "IFI Pct":      "{:.0f}",
@@ -1078,23 +1038,17 @@ with tab1:
         speed_only_style = lambda v: "color:#F0A500;font-style:italic" if pd.notna(v) and float(v) < 0 else ""
         if "Final Tier" in disp.columns: styled = styled.map(tier_bg,     subset=["Final Tier"])
         if "IFI Label"  in disp.columns: styled = styled.map(ifi_bg,      subset=["IFI Label"])
-        if "PSV-99"     in disp.columns: styled = styled.map(psv_bg,      subset=["PSV-99"])
+        if "Peak Velocity" in disp.columns: styled = styled.map(psv_bg, subset=["Peak Velocity"])
 
         styled = styled.format(fmt, na_rep="—")
 
         event = st.dataframe(styled, use_container_width=True, height=440,
                              on_select="rerun", selection_mode="single-row")
 
-        # Physical Benchmark selector - bottom of list
-        bench_col1, bench_col2 = st.columns([2,3])
-        with bench_col1:
-            st.markdown(f'<div style="font-size:10px;color:#888;margin-top:6px;">⚡ Physical Benchmark:</div>',
-                        unsafe_allow_html=True)
-        with bench_col2:
-            bench_sel = st.radio("", ["DACH (Peer)", "Top 5 Ligen"],
-                key="bench_mode_radio", horizontal=True,
-                label_visibility="collapsed")
-            st.session_state["bench_mode"] = "top5" if "Top 5" in bench_sel else "dach"
+        # Physical-Benchmark-Umschalter entfernt (Session-Fund/Nutzerentscheidung):
+        # "Top 5 Ligen" war ein zweites, paralleles Benchmark-System mit fest
+        # hinterlegten Medianen - Top-3-DE ist jetzt der einzige, dokumentierte
+        # Benchmark (siehe get_layer_scores_btl).
 
         sel_name = None
         if event and event.selection and event.selection.rows:
@@ -1194,9 +1148,7 @@ with tab1:
                     st.markdown(f'<div class="jcard"><div class="val">{ps_disp}</div><div class="lbl">{ps_lbl}</div></div>', unsafe_allow_html=True)
 
                     # ── 4 LAYER CARDS (full width, same as breakdown) ─────
-                    _bench = st.session_state.get("bench_mode", "dach")
-                    sl, bl, ol, pl = get_layer_scores_btl(row, _bench)
-                    _bench_lbl = "vs Top 5" if _bench == "top5" else "DACH%"
+                    sl, bl, ol, pl = get_layer_scores_btl(row)
 
                 with d2:
                     pt_l, pt_c = physical_tier(row.get("physical score", 0) or 0, row.get("position",""))
@@ -1211,7 +1163,7 @@ with tab1:
 
                 with left_col:
                     # Layer Cards
-                    _bench_title = f"Physical Layer Profile ({_bench_lbl})"
+                    _bench_title = "Physical Layer Profile (Top-3-DE)"
                     st.markdown(f'<div style="font-size:10px;color:{ORG};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;margin:10px 0 6px;">{_bench_title}</div>', unsafe_allow_html=True)
                     cards_html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">'
                     for layer, score in zip(["speed","burst","otip","bip"],[sl,bl,ol,pl]):
@@ -1309,20 +1261,25 @@ with tab2:
                     avg_ps = df_v["physical score"].mean() if "physical score" in df_v.columns else 0
                     st.markdown(f'<div class="jcard"><div class="val">{avg_ps:.0f}</div><div class="lbl">Ø Physical Score</div></div>', unsafe_allow_html=True)
                 with m2:
-                    max_psv = df_v["sc_psv-99"].max() if "sc_psv-99" in df_v.columns else 0
-                    st.markdown(f'<div class="jcard"><div class="val">{max_psv:.2f}</div><div class="lbl">Max PSV-99</div></div>', unsafe_allow_html=True)
+                    max_psv = df_v["sc_peak velocity"].max() if "sc_peak velocity" in df_v.columns else 0
+                    st.markdown(f'<div class="jcard"><div class="val">{max_psv:.2f}</div><div class="lbl">Max Peak Velocity</div></div>', unsafe_allow_html=True)
                 with m3:
-                    et = len(df_v[df_v.get("final_tier", pd.Series(dtype=str)).isin(["🔥 ELITE TARGET","🟢 TOP TARGET"])]) if "final_tier" in df_v.columns else 0
+                    # Bugfix (Session-Fund, gleiches Muster wie elite_top oben): verwies
+                    # auf nicht mehr existierende Tier-Namen, stand daher immer auf 0.
+                    et = len(df_v[
+                        df_v.get("physical_profile", pd.Series(dtype=str)).isin(list(PROFILE_COLORS.keys()))
+                        & (df_v.get("ifi_label", pd.Series(dtype=str)) == "ELITE")
+                    ]) if "physical_profile" in df_v.columns else 0
                     st.markdown(f'<div class="jcard"><div class="val">{et}</div><div class="lbl">Elite + Top</div></div>', unsafe_allow_html=True)
                 with m4:
                     pos_dist = df_v["position"].value_counts().to_dict() if "position" in df_v.columns else {}
                     pos_str  = " · ".join([f"{p}: {n}" for p, n in pos_dist.items()])
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:12px;">{pos_str or "—"}</div><div class="lbl">Positionen</div></div>', unsafe_allow_html=True)
 
-                show = [c for c in ["name","position","age","physical score","final_tier","ifi_label","sc_psv-99","speed_flag","spielertyp"] if c in df_v.columns]
+                show = [c for c in ["name","position","age","physical score","final_tier","ifi_label","sc_peak velocity","speed_flag","spielertyp"] if c in df_v.columns]
                 st.dataframe(df_v[show].rename(columns={
                     "name":"Spieler","position":"Position","age":"Alter",
-                    "physical score":"Physical Score","final_tier":"Final Tier","ifi_label":"IFI Label","sc_psv-99":"PSV-99",
+                    "physical score":"Physical Score","final_tier":"Final Tier","ifi_label":"IFI Label","sc_peak velocity":"Peak Velocity",
                     "speed_flag":"Speed Flag","spielertyp":"Spielertyp"
                 }).reset_index(drop=True), use_container_width=True, height=200)
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -1615,7 +1572,7 @@ with tab4:
                 liga    = row_o.get("liga", "—")
                 pos     = row_o.get("position", "—")
                 age     = row_o.get("age", "—")
-                psv     = f'{float(row_o.get("sc_psv-99", 0) or 0):.2f}' if row_o.get("sc_psv-99") else "—"
+                psv     = f'{float(row_o.get("sc_peak velocity", 0) or 0):.2f}' if row_o.get("sc_peak velocity") else "—"
                 phys    = f'{float(row_o.get("physical score", 0) or 0):.1f}' if row_o.get("physical score") else "—"
                 ifi_pct = f'{float(row_o.get("pct_score", 0) or 0)*100:.0f}' if row_o.get("pct_score") else "—"
                 ti      = int(row_o.get("OBV_Total Impact", 0) or 0)
@@ -1635,7 +1592,7 @@ td:last-child{{color:#FFF}}.big{{font-size:36px;font-weight:700;color:#FFF}}.lbl
 <h1>{name}</h1>
 <div class='sub'>{team} · {liga} · {pos} · {age} Jahre</div>
 <div class='section'><h2>⚡ PHYSICAL</h2><table>
-<tr><td>PSV-99</td><td style='text-align:right;font-weight:700'>{psv}</td></tr>
+<tr><td>Peak Velocity</td><td style='text-align:right;font-weight:700'>{psv} km/h</td></tr>
 <tr><td>Physical Score</td><td style='text-align:right;font-weight:700'>{phys}</td></tr>
 <tr><td>IFI Percentile</td><td style='text-align:right;font-weight:700'>{ifi_pct}%</td></tr>
 </table></div>
@@ -1694,7 +1651,7 @@ with tab5:
             age_num = pd.to_numeric(dof["age"], errors="coerce")
             dof = dof[(age_num >= age_range_obv[0]) & (age_num <= age_range_obv[1])]
         st.markdown(f"<span style='color:{ORG};font-weight:600'>{len(dof)} Spieler</span>", unsafe_allow_html=True)
-        obv_num = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area","physical score","pct_score","sc_psv-99","age"]
+        obv_num = ["OBV_Total Impact","OBV_Impact per 90","OBV_Shooting","OBV_Final Ball","OBV_Carries","OBV_Buildup Pass","OBV_Defense","OBV_Pen Area","physical score","pct_score","sc_peak velocity","age"]
         obv_num = [c for c in obv_num if c in dof.columns]
         sc1, sc2, sc3 = st.columns(3)
         with sc1: ox = st.selectbox("X-Achse", obv_num, index=0, key="obv_x")

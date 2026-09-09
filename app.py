@@ -933,7 +933,10 @@ for col, (val, lbl) in zip(kpi_cols, kpis):
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📋 Spieler-Liste","🏟️ Team-Suche","🔍 Market Screener","🔮 OBV Profil","📊 OBV Screener","🎯 IFI Screener","📖 Info"]) 
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    "📋 Spieler-Liste","🏟️ Team-Suche","🔍 Market Screener","🔮 OBV Profil",
+    "📊 OBV Screener","🎯 IFI Screener","📖 Info",
+    "📈 IFI Ranking","⚡ Physical Screener"])
 
 # ── TAB 1: SPIELER-LISTE ──────────────────────────────────────────────────────
 with tab1:
@@ -1955,3 +1958,165 @@ irreführende Aussage gemacht).
         """)
 
     st.markdown(f"<div style='text-align:center;color:#666;font-size:11px;'>Between The Lines Scouting Intelligence · {datetime.now().strftime('%Y')}</div>", unsafe_allow_html=True)
+
+# ── TAB: IFI RANKING (gleichgewichtete Attribute, ohne Rollenprofil) ──────────
+with tab8:
+    st.markdown(f'<div class="sec">📈 IFI Ranking — Attribute gleichgewichtet</div>', unsafe_allow_html=True)
+    st.caption("Rangliste nach IFI-Perzentil (alle Attribute gleichgewichtet, Gewicht=1 je Attribut) - "
+               "ohne Rollenprofil, fuer den schnellen Ueberblick \"wer ist technisch/taktisch am staerksten\", "
+               "unabhaengig davon, ob das Profil zu einer bestimmten Rolle passt (siehe IFI Screener fuer Rollen-Index/Fit).")
+
+    rk1, rk2, rk3, rk4 = st.columns(4)
+    with rk1:
+        rank_pos = st.selectbox("Position", list(POS_CONFIG.keys()),
+            format_func=lambda x: {"Winger":"Außenstürmer","Striker":"Stürmer",
+                "Midfielder":"Mittelfeld","Fullback":"Außenverteidiger",
+                "Central Defender":"Innenverteidiger"}.get(x,x), key="rk_pos")
+    with rk2:
+        rank_ligen = ["Alle"] + sorted(df_raw["liga"].dropna().unique().tolist())
+        rank_liga = st.selectbox("Liga", rank_ligen, key="rk_liga")
+    with rk3:
+        if "saison" in df_raw.columns:
+            rank_saisons = ["Alle"] + sorted(df_raw["saison"].dropna().unique().tolist())
+            rank_saison = st.selectbox("Saison", rank_saisons, key="rk_saison")
+        else:
+            rank_saison = "Alle"
+    with rk4:
+        rank_min_min = st.slider("Mindestminuten", 0, 3000, 450, 50, key="rk_min")
+
+    rank_age = st.slider("Alter", 14, 42, (14, 42), 1, key="rk_age")
+
+    rk_df = df_raw[df_raw["position"] == rank_pos].copy()
+    if rank_saison != "Alle" and "saison" in rk_df.columns:
+        rk_df = rk_df[rk_df["saison"] == rank_saison]
+    if rank_liga != "Alle":
+        rk_df = rk_df[rk_df["liga"] == rank_liga]
+    if "minutes" in rk_df.columns:
+        rk_df = rk_df[pd.to_numeric(rk_df["minutes"], errors="coerce").fillna(0) >= rank_min_min]
+    if "age" in rk_df.columns:
+        age_n = pd.to_numeric(rk_df["age"], errors="coerce")
+        rk_df = rk_df[(age_n >= rank_age[0]) & (age_n <= rank_age[1])]
+
+    # Gleichgewichtung aller Attribute dieser Position (Gewicht=1 je Attribut,
+    # identisch zum Sidebar-Default) - nutzt dieselbe recalc()-Funktion wie
+    # ueberall sonst, damit ifi_label/final_tier/physical_* konsistent bleiben.
+    rk_weights = {a: 1 for a in POS_CONFIG.get(rank_pos, {}).get("attrs", [])}
+    rk_df = recalc(rk_df, rk_weights, rank_pos)
+    rk_df = rk_df.sort_values("pct_score", ascending=False).reset_index(drop=True)
+
+    st.markdown(f'<div style="font-size:12px;color:{ORG};font-weight:600;margin-bottom:8px;">{len(rk_df)} Spieler gefunden</div>', unsafe_allow_html=True)
+
+    if not rk_df.empty:
+        pos_attrs    = POS_CONFIG.get(rank_pos, {}).get("attrs", [])
+        pos_attrs_de = POS_CONFIG.get(rank_pos, {}).get("attrs_de", pos_attrs)
+        attr_cols    = [f"pct_{a}" for a in pos_attrs if f"pct_{a}" in rk_df.columns]
+
+        base_cols = [c for c in ["name","team","liga","saison","age","minutes"] if c in rk_df.columns]
+        tail_cols = [c for c in ["pct_score","ifi_label","spielertyp"] if c in rk_df.columns]
+        final_cols = base_cols + attr_cols + tail_cols
+
+        disp_rk = rk_df[final_cols].copy()
+        for c in attr_cols + ["pct_score"]:
+            if c in disp_rk.columns:
+                disp_rk[c] = pd.to_numeric(disp_rk[c], errors="coerce").round(0)
+
+        rename_map = {
+            "name":"Spieler","team":"Team","liga":"Liga","saison":"Saison",
+            "age":"Alter","minutes":"Min","pct_score":"IFI%",
+            "ifi_label":"IFI Label","spielertyp":"Spielertyp",
+        }
+        for a, a_de in zip(pos_attrs, pos_attrs_de):
+            rename_map[f"pct_{a}"] = a_de
+        disp_rk = disp_rk.rename(columns=rename_map)
+        st.dataframe(disp_rk, use_container_width=True, height=520)
+    else:
+        st.info("Keine Spieler gefunden.")
+
+# ── TAB: PHYSICAL SCREENER (reine Athletik-Suche, unabhaengig von IFI) ───────
+with tab9:
+    st.markdown(f'<div class="sec">⚡ Physical Screener — Reine Athletik-Suche</div>', unsafe_allow_html=True)
+    st.caption("Findet physische Outlier unabhaengig vom IFI-Wert - im Gegensatz zum Market Screener, "
+               "der immer physisch UND IFI gleichzeitig verlangt. IFI% wird nur informativ mit angezeigt, "
+               "fliesst hier nicht in den Filter ein.")
+
+    ph1, ph2, ph3, ph4 = st.columns(4)
+    with ph1:
+        phys_pos = st.selectbox("Position", list(POS_CONFIG.keys()),
+            format_func=lambda x: {"Winger":"Außenstürmer","Striker":"Stürmer",
+                "Midfielder":"Mittelfeld","Fullback":"Außenverteidiger",
+                "Central Defender":"Innenverteidiger"}.get(x,x), key="ph_pos")
+    with ph2:
+        phys_ligen = ["Alle"] + sorted(df_raw["liga"].dropna().unique().tolist())
+        phys_liga = st.selectbox("Liga", phys_ligen, key="ph_liga")
+    with ph3:
+        if "saison" in df_raw.columns:
+            phys_saisons = ["Alle"] + sorted(df_raw["saison"].dropna().unique().tolist())
+            phys_saison = st.selectbox("Saison", phys_saisons, key="ph_saison")
+        else:
+            phys_saison = "Alle"
+    with ph4:
+        phys_min_min = st.slider("Mindestminuten", 0, 3000, 450, 50, key="ph_min")
+
+    ph5, ph6 = st.columns(2)
+    with ph5:
+        phys_age = st.slider("Alter", 14, 42, (14, 42), 1, key="ph_age")
+    with ph6:
+        phys_mode = st.radio("Modus", ["Beliebige Ebene (Outlier)", "Bestimmte Ebene"], key="ph_mode", horizontal=True)
+
+    LAYER_MAP_DE = {"speed":"⚡ Speed","burst":"🚀 Burst","otip":"🏃 OTIP","bip":"💥 BIP"}
+    if phys_mode == "Bestimmte Ebene":
+        phys_layer = st.selectbox("Ebene", list(LAYER_MAP_DE.keys()),
+            format_func=lambda x: LAYER_MAP_DE[x], key="ph_layer")
+        phys_outlier_min = None
+    else:
+        phys_layer = None
+        phys_outlier_min = st.slider("Mindest-Perzentil in mind. 1 Ebene", 0, 100, 75, 5, key="ph_outlier_min")
+
+    ph_df = df_raw[df_raw["position"] == phys_pos].copy()
+    if phys_saison != "Alle" and "saison" in ph_df.columns:
+        ph_df = ph_df[ph_df["saison"] == phys_saison]
+    if phys_liga != "Alle":
+        ph_df = ph_df[ph_df["liga"] == phys_liga]
+    if "minutes" in ph_df.columns:
+        ph_df = ph_df[pd.to_numeric(ph_df["minutes"], errors="coerce").fillna(0) >= phys_min_min]
+    if "age" in ph_df.columns:
+        age_n = pd.to_numeric(ph_df["age"], errors="coerce")
+        ph_df = ph_df[(age_n >= phys_age[0]) & (age_n <= phys_age[1])]
+
+    # recalc() liefert nebenbei physical_foundation/physical_profile/pct_score/
+    # ifi_label konsistent mit dem Rest der App (Gleichgewichtung, wie im
+    # IFI-Ranking-Tab - IFI hier aber rein informativ, kein Filterkriterium).
+    ph_df = recalc(ph_df, {a: 1 for a in POS_CONFIG.get(phys_pos, {}).get("attrs", [])}, phys_pos)
+    ph_df[["_s","_b","_o","_p"]] = ph_df.apply(lambda r: pd.Series(get_layer_scores_btl(r)), axis=1)
+
+    layer_col_map = {"speed":"_s","burst":"_b","otip":"_o","bip":"_p"}
+    if phys_mode == "Bestimmte Ebene":
+        col = layer_col_map[phys_layer]
+        ph_filtered = ph_df[ph_df[col].notna()].sort_values(col, ascending=False)
+    else:
+        max_layer = ph_df[["_s","_b","_o","_p"]].max(axis=1)
+        ph_filtered = ph_df[max_layer >= phys_outlier_min].copy()
+        ph_filtered["_max_layer"] = max_layer
+        ph_filtered = ph_filtered.sort_values("_max_layer", ascending=False)
+
+    ph_filtered = ph_filtered.reset_index(drop=True)
+    st.markdown(f'<div style="font-size:12px;color:{ORG};font-weight:600;margin-bottom:8px;">{len(ph_filtered)} Spieler gefunden</div>', unsafe_allow_html=True)
+
+    if not ph_filtered.empty:
+        disp_ph = pd.DataFrame(index=ph_filtered.index)
+        for c, lbl in [("name","Spieler"),("team","Team"),("liga","Liga"),("saison","Saison"),
+                       ("age","Alter"),("minutes","Min")]:
+            if c in ph_filtered.columns:
+                disp_ph[lbl] = ph_filtered[c]
+        disp_ph["Speed"] = ph_filtered["_s"].round(0)
+        disp_ph["Burst"] = ph_filtered["_b"].round(0)
+        disp_ph["OTIP"]  = ph_filtered["_o"].round(0)
+        disp_ph["BIP"]   = ph_filtered["_p"].round(0)
+        disp_ph["Physical-Fundament"] = ph_filtered.get("physical_foundation", "—")
+        disp_ph["Ausreißer-Profil"]   = ph_filtered.get("physical_profile", pd.Series(dtype=object)).fillna("—")
+        if "sc_peak velocity" in ph_filtered.columns:
+            disp_ph["Peak Velocity"] = pd.to_numeric(ph_filtered["sc_peak velocity"], errors="coerce").round(2)
+        disp_ph["IFI% (nur Info)"] = pd.to_numeric(ph_filtered.get("pct_score", pd.Series(dtype=float)), errors="coerce").round(0)
+        st.dataframe(disp_ph, use_container_width=True, height=520)
+    else:
+        st.info("Keine Spieler gefunden.")

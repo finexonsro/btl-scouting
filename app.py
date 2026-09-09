@@ -1134,6 +1134,13 @@ with tab1:
                 row_m = df[df["name"] == sel_name]
             if not row_m.empty:
                 row      = row_m.iloc[0]
+                # Eindeutigen Schluessel fuer OBV-Profil-Tab mitgeben (Bugfix:
+                # reiner Name reicht nicht, wenn ein Spieler mehrere Saison-
+                # Zeilen hat - siehe Session-Fund oben)
+                st.session_state["obv_player_key"] = {
+                    "name": row.get("name"), "team": row.get("team"),
+                    "liga": row.get("liga"), "saison": row.get("saison"),
+                }
                 pos_row  = row.get("position", "Winger")
                 # Header: kombiniertes Label aus final_tier
                 tier_l   = row.get("final_tier", "—") or "—"
@@ -1344,7 +1351,7 @@ with tab3:
 
     st.markdown(f'<div class="sec">🔍 Market Screener — Beste Spieler finden</div>', unsafe_allow_html=True)
 
-    sc1, sc2, sc3 = st.columns([1,1,1])
+    sc1, sc2, sc3, sc4 = st.columns([1,1,1,1])
     with sc1:
         screener_pos = st.selectbox("Position", list(POS_KEY_LAYERS.keys()),
             format_func=lambda x: {"Winger":"Außenstürmer","Striker":"Stürmer",
@@ -1356,6 +1363,15 @@ with tab3:
         all_ligen_sc = ["Alle"] + sorted(df_raw["liga"].dropna().unique().tolist())
         screener_liga = st.selectbox("Liga", all_ligen_sc, key="sc_liga")
         screener_min_min = st.slider("Mindestminuten", 0, 2000, 300, 50, key="sc_min")
+    with sc4:
+        # Bugfix (Session-Fund): Screener nutzte df_raw direkt, ohne die
+        # Sidebar-Saison-Auswahl zu beachten - eigener Saison-Filter noetig,
+        # da sonst z.B. laufende-Saison-Signale nicht isoliert werden koennen.
+        if "saison" in df_raw.columns:
+            all_saison_sc = ["Alle"] + sorted(df_raw["saison"].dropna().unique().tolist())
+            screener_saison = st.selectbox("Saison", all_saison_sc, key="sc_saison")
+        else:
+            screener_saison = "Alle"
 
     prof = SCREENER_PROFILES[screener_profile]
     st.markdown(f'<div style="font-size:11px;color:#888;margin:2px 0 10px;">{prof["desc"]}</div>', unsafe_allow_html=True)
@@ -1370,6 +1386,8 @@ with tab3:
 
     # ── FILTER ────────────────────────────────────────────────────────────────
     sc_df = df_raw[df_raw["position"] == screener_pos].copy()
+    if screener_saison != "Alle" and "saison" in sc_df.columns:
+        sc_df = sc_df[sc_df["saison"] == screener_saison]
     if screener_liga != "Alle":
         sc_df = sc_df[sc_df["liga"] == screener_liga]
     elif screener_profile == "💡 Hidden Gem":
@@ -1517,24 +1535,51 @@ with tab4:
     if not has_obv:
         st.info("OBV-Daten noch nicht verfügbar. OBV-Merge durchführen und App-Daten aktualisieren.")
     else:
-        obv_players = df[df["OBV_Total Impact"].notna()]["name"].unique().tolist()
-        current_obv = st.session_state.get("obv_player", obv_players[0] if obv_players else "")
-        if current_obv not in obv_players and obv_players:
-            current_obv = obv_players[0]
-        # Zeige Banner wenn Spieler aus Spielerliste/Screener kommt
-        was_preloaded = current_obv in obv_players and current_obv != obv_players[0]
-        if was_preloaded:
+        # Bugfix (Session-Fund): Dropdown listete bisher nur eindeutige Namen -
+        # bei zwei Saison-Zeilen desselben Spielers war keine Unterscheidung
+        # moeglich, und die Zeilen-Suche lief nur ueber den Namen (nahm immer
+        # die erste gefundene Zeile). Jetzt: disambiguierende Labels + exakter
+        # Zeilen-Index statt Name-Lookup.
+        df_obv_base = df[df["OBV_Total Impact"].notna()].copy().reset_index(drop=True)
+        name_counts_obv = df_obv_base["name"].value_counts()
+        def _obv_label(r):
+            if name_counts_obv.get(r["name"], 1) > 1:
+                extra = " · ".join(str(r.get(c)) for c in ["team","liga","saison"]
+                                    if c in r.index and pd.notna(r.get(c)))
+                return f"{r['name']} ({extra})" if extra else r["name"]
+            return r["name"]
+        obv_labels       = df_obv_base.apply(_obv_label, axis=1).tolist() if not df_obv_base.empty else []
+        label_to_obv_idx = {lbl: i for i, lbl in enumerate(obv_labels)}
+
+        # Vorauswahl: exakter Schluessel aus der Spielerliste (Team+Liga+Saison),
+        # falls vorhanden - sonst alter, mehrdeutiger Fallback nur ueber den Namen
+        key = st.session_state.get("obv_player_key")
+        default_idx = 0
+        if key and not df_obv_base.empty:
+            exact = df_obv_base[
+                (df_obv_base["name"] == key.get("name"))
+                & (df_obv_base.get("team", pd.Series(dtype=object)) == key.get("team"))
+                & (df_obv_base.get("liga", pd.Series(dtype=object)) == key.get("liga"))
+                & (df_obv_base.get("saison", pd.Series(dtype=object)) == key.get("saison"))
+            ]
+            if not exact.empty:
+                default_idx = int(exact.index[0])
+        elif st.session_state.get("obv_player") in df_obv_base.get("name", pd.Series(dtype=object)).values:
+            default_idx = int(df_obv_base[df_obv_base["name"] == st.session_state["obv_player"]].index[0])
+
+        was_preloaded = bool(key) or (st.session_state.get("obv_player") and default_idx != 0)
+        if was_preloaded and obv_labels:
             st.markdown(f"""<div style='background:#1A2E1A;border-radius:8px;padding:10px 16px;
                 margin-bottom:10px;border-left:3px solid #4CAF50;'>
                 <span style='color:#4CAF50;font-weight:700;font-size:13px'>✅ Aus Spielerliste geladen: </span>
-                <span style='color:#FFF;font-size:13px'>{current_obv}</span>
+                <span style='color:#FFF;font-size:13px'>{obv_labels[default_idx]}</span>
             </div>""", unsafe_allow_html=True)
-        sel_obv = st.selectbox("Spieler auswählen", obv_players,
-            index=obv_players.index(current_obv) if current_obv in obv_players else 0, key="obv_sel")
+        sel_label = st.selectbox("Spieler auswählen", obv_labels, index=default_idx, key="obv_sel")
+        sel_idx   = label_to_obv_idx.get(sel_label, 0)
+        row_o     = df_obv_base.iloc[sel_idx] if not df_obv_base.empty else pd.Series(dtype=object)
+        sel_obv   = row_o.get("name", "")  # fuer Anzeige/Dateiname weiterhin nur der Name
         st.session_state["obv_player"] = sel_obv
-        row_obv = df[(df["name"] == sel_obv) & (df["OBV_Total Impact"].notna())]
-        if not row_obv.empty and pd.notna(row_obv.iloc[0].get("OBV_Total Impact")):
-            row_o = row_obv.iloc[0]
+        if pd.notna(row_o.get("OBV_Total Impact")):
             if row_o.get("obv_small_sample"):
                 st.markdown(f"""<div style='background:#3A2A0A;border-radius:8px;padding:8px 14px;
                 margin-bottom:10px;border-left:3px solid #E8A33D;'>
@@ -1632,18 +1677,18 @@ td:last-child{{color:#FFF}}.big{{font-size:36px;font-weight:700;color:#FFF}}.lbl
 <table>{comp_rows}</table></div>
 </body></html>"""
 
-            row_full = df[df["name"] == sel_obv]
-            if not row_full.empty:
-                rf = row_full.iloc[0]
-                pos_obv = rf.get("position", list(POS_CONFIG.keys())[0])
-                combined_html = make_html_report(rf, pos_obv, obv_row=row_o)
-                st.download_button(
-                    "📄 Kombinierter Report (HTML)",
-                    combined_html.encode("utf-8"),
-                    f"Report_{sel_obv.replace(' ','_')}.html",
-                    "text/html",
-                    use_container_width=True
-                )
+            # Bugfix (Session-Fund): row_o ist bereits die exakt ausgewaehlte
+            # Zeile (siehe oben) - erneute Namens-Suche hier war derselbe
+            # Mehrdeutigkeits-Bug wie beim Tabellenklick in Tab 1.
+            pos_obv = row_o.get("position", list(POS_CONFIG.keys())[0])
+            combined_html = make_html_report(row_o, pos_obv, obv_row=row_o)
+            st.download_button(
+                "📄 Kombinierter Report (HTML)",
+                combined_html.encode("utf-8"),
+                f"Report_{sel_obv.replace(' ','_')}.html",
+                "text/html",
+                use_container_width=True
+            )
         else:
             st.info(f"Keine OBV-Daten für {sel_obv} verfügbar.")
 
@@ -1654,7 +1699,7 @@ with tab5:
         st.info("OBV-Daten noch nicht verfügbar.")
     else:
         df_obv = df[df["OBV_Total Impact"].notna()].copy()
-        fc1, fc2, fc3 = st.columns(3)
+        fc1, fc2, fc3, fc4 = st.columns(4)
         with fc1:
             pos_opts = ["Alle"] + sorted(df_obv["position"].dropna().unique().tolist())
             sel_pos_obv = st.selectbox("Position", pos_opts, key="obv_pos")
@@ -1664,6 +1709,14 @@ with tab5:
         with fc3:
             markt_opts = ["Alle"] + sorted(df_obv["markt"].dropna().unique().tolist())
             sel_markt_obv = st.selectbox("Markt", markt_opts, key="obv_markt")
+        with fc4:
+            # Bugfix (Session-Fund): wie Market Screener - eigener Datenpool
+            # (df, nicht df_f) ohne Bezug zur Sidebar-Saison-Auswahl.
+            if "saison" in df_obv.columns:
+                saison_opts_obv = ["Alle"] + sorted(df_obv["saison"].dropna().unique().tolist())
+                sel_saison_obv = st.selectbox("Saison", saison_opts_obv, key="obv_saison")
+            else:
+                sel_saison_obv = "Alle"
         # Alter + Minuten als Slider
         sl1, sl2 = st.columns(2)
         with sl1:
@@ -1674,6 +1727,7 @@ with tab5:
         if sel_pos_obv   != "Alle": dof = dof[dof["position"] == sel_pos_obv]
         if sel_liga_obv  != "Alle": dof = dof[dof["liga"] == sel_liga_obv]
         if sel_markt_obv != "Alle": dof = dof[dof["markt"] == sel_markt_obv]
+        if sel_saison_obv != "Alle" and "saison" in dof.columns: dof = dof[dof["saison"] == sel_saison_obv]
         if "minutes" in dof.columns: dof = dof[pd.to_numeric(dof["minutes"], errors="coerce").fillna(0) >= min_min_obv]
         if "age" in dof.columns:
             age_num = pd.to_numeric(dof["age"], errors="coerce")
@@ -1716,10 +1770,26 @@ with tab5:
 
                 # Spieler aus Scatter in OBV Profil laden
                 st.markdown(f"<div style='color:#888;font-size:11px;margin-top:8px'>💡 Spieler ins OBV Profil laden:</div>", unsafe_allow_html=True)
-                scatter_names = sorted(pdf_obv["name"].unique().tolist())
-                sc_sel = st.selectbox("Spieler auswählen →", ["—"] + scatter_names, key="obv_sc_sel")
+                # Bugfix (Session-Fund): wie beim Tabellenklick - disambiguierende
+                # Labels bei Namensduplikaten (mehrere Saison-Zeilen), Schluessel
+                # statt nur Name an OBV-Profil-Tab uebergeben.
+                pdf_obv_idx = pdf_obv.reset_index(drop=True)
+                name_counts_sc = pdf_obv_idx["name"].value_counts()
+                def _sc_label(r):
+                    if name_counts_sc.get(r["name"], 1) > 1:
+                        extra = " · ".join(str(r.get(c)) for c in ["team","liga","saison"]
+                                            if c in r.index and pd.notna(r.get(c)))
+                        return f"{r['name']} ({extra})" if extra else r["name"]
+                    return r["name"]
+                scatter_labels = pdf_obv_idx.apply(_sc_label, axis=1).tolist()
+                sc_sel = st.selectbox("Spieler auswählen →", ["—"] + sorted(scatter_labels), key="obv_sc_sel")
                 if sc_sel != "—":
-                    st.session_state["obv_player"] = sc_sel
+                    sc_row = pdf_obv_idx.iloc[scatter_labels.index(sc_sel)]
+                    st.session_state["obv_player"] = sc_row.get("name")
+                    st.session_state["obv_player_key"] = {
+                        "name": sc_row.get("name"), "team": sc_row.get("team"),
+                        "liga": sc_row.get("liga"), "saison": sc_row.get("saison"),
+                    }
                     st.info(f"✅ {sc_sel} gesetzt — Tab '🔮 OBV Profil' öffnen")
             except Exception as e:
                 st.error(f"Fehler: {e}")
@@ -1736,7 +1806,7 @@ with tab6:
     st.markdown(f'<div class="sec">🎯 IFI Screener — Rollenprofil-Index</div>', unsafe_allow_html=True)
     st.caption("Sucht die besten Spieler für ein konkretes Rollenprofil (Index-Score), statt nur die Gesamt-IFI-Perzentile.")
 
-    ic1, ic2, ic3 = st.columns(3)
+    ic1, ic2, ic3, ic4 = st.columns(4)
     with ic1:
         ifi_pos = st.selectbox("Position", list(ROLE_OPTIONS.keys()),
             format_func=lambda x: {"Winger":"Außenstürmer","Striker":"Stürmer",
@@ -1747,11 +1817,19 @@ with tab6:
     with ic3:
         ifi_ligen = ["Alle"] + sorted(df_raw["liga"].dropna().unique().tolist())
         ifi_liga = st.selectbox("Liga", ifi_ligen, key="ifi_liga")
-
-    ic4, ic5 = st.columns(2)
     with ic4:
-        ifi_min_min = st.slider("Mindestminuten", 0, 3000, 600, 50, key="ifi_min_min")
+        # Bugfix (Session-Fund): wie die anderen beiden Screener - eigener
+        # Datenpool (df_raw) ohne Bezug zur Sidebar-Saison-Auswahl.
+        if "saison" in df_raw.columns:
+            ifi_saisons = ["Alle"] + sorted(df_raw["saison"].dropna().unique().tolist())
+            ifi_saison = st.selectbox("Saison", ifi_saisons, key="ifi_saison")
+        else:
+            ifi_saison = "Alle"
+
+    ic5, ic6 = st.columns(2)
     with ic5:
+        ifi_min_min = st.slider("Mindestminuten", 0, 3000, 600, 50, key="ifi_min_min")
+    with ic6:
         ifi_age = st.slider("Alter", 14, 42, (14, 42), 1, key="ifi_age_range")
     ifi_strict = st.checkbox("🎯 Nur echte Prototypen", value=False, key="ifi_strict")
     def find_col(dframe, name):
@@ -1764,6 +1842,8 @@ with tab6:
     fit_col   = find_col(df_raw, f"Fit_{ifi_role}") 
 
     id_df = df_raw[df_raw["position"] == ifi_pos].copy()
+    if ifi_saison != "Alle" and "saison" in id_df.columns:
+        id_df = id_df[id_df["saison"] == ifi_saison]
     if ifi_liga != "Alle":
         id_df = id_df[id_df["liga"] == ifi_liga]
     if "minutes" in id_df.columns:

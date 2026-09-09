@@ -743,7 +743,7 @@ table{{width:100%;border-collapse:collapse;}}
 <div class="header">
     <div>
         <h1>{row.get('name','—')}</h1>
-        <p>{row.get('team','—')} · {row.get('liga','—')} · {pos_cfg.get('de',position)} · {spielertyp} · {age_disp} J. · {safe_val(row.get('minutes'),'—')} min</p>
+        <p>{row.get('team','—')} · {row.get('liga','—')}{f" ({row.get('saison')})" if pd.notna(row.get('saison')) else ""} · {pos_cfg.get('de',position)} · {spielertyp} · {age_disp} J. · {safe_val(row.get('minutes'),'—')} min</p>
     </div>
     <div class="badge">{final_tier_l}</div>
 </div>
@@ -778,6 +778,18 @@ with st.sidebar:
     sel_pos   = st.selectbox("Position", avail_pos, label_visibility="collapsed")
 
     st.markdown('<div class="sec" style="margin-top:10px;">Filter</div>', unsafe_allow_html=True)
+
+    # Saison-Filter (Session-Fund: seit dem Update auf 2026/27 fuer einen Teil
+    # der Ligen enthaelt die CSV pro Spieler ggf. mehrere Saison-Zeilen
+    # gleichzeitig - Filter macht das explizit steuerbar statt versteckt
+    # doppelt anzuzeigen. Default: aktuellste Saison(en) vorausgewaehlt, aeltere
+    # abwaehlbar aber nicht versteckt. Rueckwaertskompatibel: fehlt die Spalte
+    # in einer aelteren CSV komplett, wird der Filter einfach nicht gezeigt.)
+    if "saison" in df_raw.columns:
+        saisons = sorted(df_raw["saison"].dropna().unique().tolist())
+        sel_saison = st.multiselect("Saison", saisons, default=saisons)
+    else:
+        sel_saison = []
 
     # Markt filter
     if "markt" in df_raw.columns:
@@ -862,6 +874,8 @@ if sel_pos != "Alle" and "position" in df.columns:
 df = recalc(df, weights, pos_for_weights)
 
 mask = pd.Series([True]*len(df), index=df.index)
+if sel_saison and "saison" in df.columns:
+    mask = mask & df["saison"].isin(sel_saison)
 if sel_ligen and "liga" in df.columns:
     mask = mask & df["liga"].isin(sel_ligen)
 if sel_markt and "markt" in df.columns:
@@ -953,7 +967,7 @@ with tab1:
         st.info("Keine Spieler mit diesen Filtern.")
     else:
         show_cols = [c for c in [
-            "name","team","liga","position","spielertyp","markt","age",
+            "name","team","liga","saison","position","spielertyp","markt","age",
             "physical score","final_tier","ifi_label",
             "speed_flag","sc_peak velocity",
             "pct_score","pct_speed","pct_otip","pct_bip","pct_burst",
@@ -965,6 +979,7 @@ with tab1:
             "name":           "Spieler",
             "team":           "Verein",
             "liga":           "Liga",
+            "saison":         "Saison",
             "position":       "Position",
             "spielertyp":     "Spielertyp",
             "markt":          "Markt",
@@ -1128,7 +1143,7 @@ with tab1:
                         <div>
                             <div style="font-size:20px;font-weight:800;color:#FFF;">{row.get('name','—')}</div>
                             <div style="font-size:13px;color:#888;margin-top:4px;">
-                                {row.get('team','—')} · {row.get('liga','—')} ·
+                                {row.get('team','—')} · {row.get('liga','—')}{f" ({row.get('saison')})" if pd.notna(row.get('saison')) else ""} ·
                                 {POS_CONFIG.get(pos_row,{}).get('de',pos_row)} ·
                                 <span style="color:{ORG};">{row.get('spielertyp','—')}</span> ·
                                 {safe_val(row.get('age'),'—')} J. · {mins} min
@@ -1276,9 +1291,9 @@ with tab2:
                     pos_str  = " · ".join([f"{p}: {n}" for p, n in pos_dist.items()])
                     st.markdown(f'<div class="jcard"><div class="val" style="font-size:12px;">{pos_str or "—"}</div><div class="lbl">Positionen</div></div>', unsafe_allow_html=True)
 
-                show = [c for c in ["name","position","age","physical score","final_tier","ifi_label","sc_peak velocity","speed_flag","spielertyp"] if c in df_v.columns]
+                show = [c for c in ["name","liga","saison","position","age","physical score","final_tier","ifi_label","sc_peak velocity","speed_flag","spielertyp"] if c in df_v.columns]
                 st.dataframe(df_v[show].rename(columns={
-                    "name":"Spieler","position":"Position","age":"Alter",
+                    "name":"Spieler","liga":"Liga","saison":"Saison","position":"Position","age":"Alter",
                     "physical score":"Physical Score","final_tier":"Final Tier","ifi_label":"IFI Label","sc_peak velocity":"Peak Velocity",
                     "speed_flag":"Speed Flag","spielertyp":"Spielertyp"
                 }).reset_index(drop=True), use_container_width=True, height=200)

@@ -999,16 +999,25 @@ def render_watchlist_section(key_suffix=""):
                 file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv", key=f"wl_csv_{key_suffix}")
         with exp2:
-            # Excel-Export (kein direkter Google-Sheets-Push moeglich ohne eigene
-            # Service-Account-Anbindung - .xlsx laesst sich aber direkt per
-            # "Datei > Importieren" in Google Sheets oeffnen)
-            xlsx_buf = io.BytesIO()
-            with pd.ExcelWriter(xlsx_buf, engine="openpyxl") as writer:
-                wl_df.to_excel(writer, index=False, sheet_name="Watchlist")
-            st.download_button("📊 Excel Export", data=xlsx_buf.getvalue(),
-                file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"wl_xlsx_{key_suffix}")
+            # Bugfix (Session-Fund): openpyxl fehlte in requirements.txt der
+            # Streamlit-Cloud-Umgebung, dadurch riss ein fehlendes Paket die
+            # GESAMTE Seite ab, sobald die Watchlist nicht leer war (nicht nur
+            # den Export-Button). Jetzt abgesichert: Excel-Export wird nur
+            # angeboten, wenn openpyxl tatsaechlich verfuegbar ist - sonst
+            # Hinweis statt Absturz. "openpyxl" muss zusaetzlich in
+            # requirements.txt eingetragen werden, damit der Button ueberhaupt
+            # erscheint.
+            try:
+                import openpyxl  # noqa: F401 - nur Verfuegbarkeits-Check
+                xlsx_buf = io.BytesIO()
+                with pd.ExcelWriter(xlsx_buf, engine="openpyxl") as writer:
+                    wl_df.to_excel(writer, index=False, sheet_name="Watchlist")
+                st.download_button("📊 Excel Export", data=xlsx_buf.getvalue(),
+                    file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"wl_xlsx_{key_suffix}")
+            except ImportError:
+                st.caption("⚠️ Excel-Export braucht 'openpyxl' in requirements.txt")
         with exp3:
             if st.button("📄 HTML Reports generieren", key=f"wl_html_{key_suffix}"):
                 reports = []

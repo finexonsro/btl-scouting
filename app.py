@@ -4,6 +4,7 @@ pd.set_option("styler.render.max_elements", 2_000_000)  # Standardlimit (262144)
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+import io
 from datetime import datetime
 
 st.set_page_config(
@@ -933,6 +934,98 @@ for col, (val, lbl) in zip(kpi_cols, kpis):
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
+# ── WATCHLIST (app-weit, ueber alle Screener hinweg gemeinsam) ───────────────
+# Session-Fund/Nutzerwunsch: Watchlist gab es bisher nur im Market Screener -
+# jetzt eine zentrale, geteilte Liste (st.session_state["watchlist"]), aus
+# jedem der 5 Screener befuellbar, mit CSV- und Excel-Export.
+def add_row_to_watchlist(row_or_dict, quelle=""):
+    """Fuegt eine einzelne Zeile hinzu. Dedup ueber Name+Team+Liga+Saison -
+    wichtig, damit zwei echte Saison-Zeilen desselben Spielers beide auf die
+    Liste koennen, ein zweiter Klick auf denselben Spieler aber nicht doppelt
+    landet."""
+    if "watchlist" not in st.session_state:
+        st.session_state["watchlist"] = []
+    entry = row_or_dict.to_dict() if hasattr(row_or_dict, "to_dict") else dict(row_or_dict)
+    entry["_quelle"] = quelle
+    key = (entry.get("name"), entry.get("team"), entry.get("liga"), entry.get("saison"))
+    exists = any((w.get("name"), w.get("team"), w.get("liga"), w.get("saison")) == key
+                 for w in st.session_state["watchlist"])
+    if not exists:
+        st.session_state["watchlist"].append(entry)
+        return True
+    return False
+
+def add_players_to_watchlist(source_df, names, quelle=""):
+    added = 0
+    for nm in names:
+        match = source_df[source_df["name"] == nm]
+        if not match.empty and add_row_to_watchlist(match.iloc[0], quelle):
+            added += 1
+    return added
+
+def render_watchlist_section(key_suffix=""):
+    st.markdown('<div class="div" style="margin:12px 0 8px;"></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sec">⭐ Watchlist (gesamt, über alle Screener)</div>', unsafe_allow_html=True)
+    if "watchlist" not in st.session_state:
+        st.session_state["watchlist"] = []
+    wlc1, wlc2 = st.columns([4,1])
+    with wlc2:
+        if st.button("🗑️ Leeren", key=f"wl_clear_{key_suffix}"):
+            st.session_state["watchlist"] = []
+            st.rerun()
+    if st.session_state["watchlist"]:
+        wl = st.session_state["watchlist"]
+        st.markdown(f'<div style="font-size:11px;color:#888;margin-bottom:6px;">{len(wl)} Spieler auf der Watchlist</div>', unsafe_allow_html=True)
+        wl_rows = []
+        for w in wl:
+            wl_rows.append({
+                "Spieler":    w.get("name","—"),
+                "Team":       w.get("team","—"),
+                "Liga":       w.get("liga","—"),
+                "Saison":     w.get("saison","—"),
+                "Position":   w.get("position","—"),
+                "Alter":      w.get("age","—"),
+                "IFI%":       int(round(float(w["pct_score"]))) if pd.notna(w.get("pct_score")) else None,
+                "Spielertyp": w.get("spielertyp","—"),
+                "Quelle":     w.get("_quelle","—"),
+            })
+        wl_df = pd.DataFrame(wl_rows)
+        st.dataframe(wl_df, use_container_width=True, height=180, key=f"wl_view_{key_suffix}")
+
+        exp1, exp2, exp3 = st.columns(3)
+        with exp1:
+            csv_exp = wl_df.to_csv(index=False).encode("utf-8")
+            st.download_button("📥 CSV Export", data=csv_exp,
+                file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv", key=f"wl_csv_{key_suffix}")
+        with exp2:
+            # Excel-Export (kein direkter Google-Sheets-Push moeglich ohne eigene
+            # Service-Account-Anbindung - .xlsx laesst sich aber direkt per
+            # "Datei > Importieren" in Google Sheets oeffnen)
+            xlsx_buf = io.BytesIO()
+            with pd.ExcelWriter(xlsx_buf, engine="openpyxl") as writer:
+                wl_df.to_excel(writer, index=False, sheet_name="Watchlist")
+            st.download_button("📊 Excel Export", data=xlsx_buf.getvalue(),
+                file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"wl_xlsx_{key_suffix}")
+        with exp3:
+            if st.button("📄 HTML Reports generieren", key=f"wl_html_{key_suffix}"):
+                reports = []
+                for w in wl:
+                    pos_w = w.get("position","Winger")
+                    try:
+                        row_w = pd.Series(w)
+                        html_w = make_html_report(row_w, pos_w)
+                        reports.append(html_w)
+                    except Exception as e:
+                        reports.append(f"<p>Fehler für {w.get('name','?')}: {e}</p>")
+                if reports:
+                    combined = '<div style="page-break-after:always"></div>'.join(reports)
+                    st.download_button("⬇️ Download Watchlist Report", data=combined,
+                        file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.html",
+                        mime="text/html", key=f"wl_dl_{key_suffix}")
+
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📋 Spieler-Liste","🏟️ Team-Suche","🔍 Market Screener","🔮 OBV Profil",
     "📊 OBV Screener","🎯 IFI Screener","📖 Info",
@@ -1459,76 +1552,14 @@ with tab3:
                                  on_select="rerun", selection_mode="multi-row")
 
         # ── WATCHLIST ─────────────────────────────────────────────────────────
-        st.markdown('<div class="div" style="margin:12px 0 8px;"></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="sec">⭐ Watchlist</div>', unsafe_allow_html=True)
-
-        if "watchlist" not in st.session_state:
-            st.session_state["watchlist"] = []
-
-        wl1, wl2 = st.columns([3,1])
-        with wl1:
-            if event_sc and event_sc.selection and event_sc.selection.rows:
-                sel_names = [sc_disp.iloc[i]["Spieler"] for i in event_sc.selection.rows
-                             if i < len(sc_disp)]
-                if st.button(f"⭐ {len(sel_names)} Spieler zur Watchlist"):
-                    for nm in sel_names:
-                        match = sc_filtered[sc_filtered["name"] == nm]
-                        if not match.empty:
-                            entry = match.iloc[0].to_dict()
-                            entry["_profil"] = screener_profile
-                            if not any(w.get("name") == nm and w.get("liga") == str(row.get("liga",""))
-                                       for w in st.session_state["watchlist"]):
-                                st.session_state["watchlist"].append(entry)
-                    st.success(f"✅ {len(sel_names)} Spieler hinzugefügt")
-        with wl2:
-            if st.button("🗑️ Leeren"):
-                st.session_state["watchlist"] = []
-                st.rerun()
-
-        if st.session_state["watchlist"]:
-            wl = st.session_state["watchlist"]
-            st.markdown(f'<div style="font-size:11px;color:#888;margin-bottom:6px;">                {len(wl)} Spieler auf der Watchlist</div>', unsafe_allow_html=True)
-
-            wl_rows = []
-            for w in wl:
-                wl_rows.append({
-                    "Spieler":    w.get("name","—"),
-                    "Team":       w.get("team","—"),
-                    "Liga":       w.get("liga","—"),
-                    "Position":   w.get("position","—"),
-                    "Alter":      w.get("age","—"),
-                    "IFI%":       int(round(float(w["pct_score"]))) if pd.notna(w.get("pct_score")) else None,
-                    "Spielertyp": w.get("spielertyp","—"),
-                    "Profil":     w.get("_profil","—"),
-                })
-            wl_df = pd.DataFrame(wl_rows)
-            st.dataframe(wl_df, use_container_width=True, height=180)
-
-            exp1, exp2 = st.columns(2)
-            with exp1:
-                csv_exp = wl_df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 CSV Export",
-                    data=csv_exp,
-                    file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv")
-            with exp2:
-                if st.button("📄 HTML Reports generieren"):
-                    reports = []
-                    for w in wl:
-                        pos_w = w.get("position","Winger")
-                        try:
-                            row_w = pd.Series(w)
-                            html_w = make_html_report(row_w, pos_w)
-                            reports.append(html_w)
-                        except Exception as e:
-                            reports.append(f"<p>Fehler für {w.get('name','?')}: {e}</p>")
-                    if reports:
-                        combined = '<div style="page-break-after:always"></div>'.join(reports)
-                        st.download_button("⬇️ Download Watchlist Report",
-                            data=combined,
-                            file_name=f"btl_watchlist_{datetime.now().strftime('%Y%m%d')}.html",
-                            mime="text/html",
-                            key="wl_dl")
+        if event_sc and event_sc.selection and event_sc.selection.rows:
+            sel_names = [sc_disp.iloc[i]["Spieler"] for i in event_sc.selection.rows
+                         if i < len(sc_disp)]
+            if st.button(f"⭐ {len(sel_names)} Spieler zur Watchlist"):
+                n = add_players_to_watchlist(sc_filtered, sel_names,
+                                              quelle=f"Market Screener ({screener_profile})")
+                st.success(f"✅ {n} Spieler hinzugefügt")
+        render_watchlist_section("mkt")
     else:
         st.info("Keine Spieler gefunden — Filter anpassen.")
 
@@ -1794,8 +1825,14 @@ with tab5:
                         "liga": sc_row.get("liga"), "saison": sc_row.get("saison"),
                     }
                     st.info(f"✅ {sc_sel} gesetzt — Tab '🔮 OBV Profil' öffnen")
+                    if st.button("⭐ Zur Watchlist", key="obv_scr_wl_btn"):
+                        if add_row_to_watchlist(sc_row, quelle="OBV Screener"):
+                            st.success(f"✅ {sc_row.get('name')} hinzugefügt")
+                        else:
+                            st.info("Bereits auf der Watchlist")
             except Exception as e:
                 st.error(f"Fehler: {e}")
+        render_watchlist_section("obv")
 # ── TAB: IFI SCREENER (Rollenprofil-Index) ────────────────────────────────
 ROLE_OPTIONS = {
     "Central Defender": ["Kompletter IV","Spielaufbauender IV","Absichernder IV","Physischer IV","Einfacher/Direkter IV"],
@@ -1874,9 +1911,16 @@ with tab6:
                 "Spielertyp": r.get("spielertyp","—"),
             })
         id_disp = pd.DataFrame(id_rows)
-        st.dataframe(id_disp, use_container_width=True, height=440)
+        event_ifi = st.dataframe(id_disp, use_container_width=True, height=440,
+                                  on_select="rerun", selection_mode="multi-row", key="ifi_scr_table")
+        if event_ifi and event_ifi.selection and event_ifi.selection.rows:
+            sel_ifi_names = [id_disp.iloc[i]["Spieler"] for i in event_ifi.selection.rows if i < len(id_disp)]
+            if st.button(f"⭐ {len(sel_ifi_names)} Spieler zur Watchlist", key="ifi_wl_btn"):
+                n = add_players_to_watchlist(id_df, sel_ifi_names, quelle=f"IFI Screener ({ifi_role})")
+                st.success(f"✅ {n} Spieler hinzugefügt")
     else:
         st.info("Keine Spieler für diese Kombination gefunden.")
+    render_watchlist_section("ifi")
         
 with tab7:
 
@@ -2028,9 +2072,16 @@ with tab8:
         for a, a_de in zip(pos_attrs, pos_attrs_de):
             rename_map[f"pct_{a}"] = a_de
         disp_rk = disp_rk.rename(columns=rename_map)
-        st.dataframe(disp_rk, use_container_width=True, height=520)
+        event_rk = st.dataframe(disp_rk, use_container_width=True, height=520,
+                                 on_select="rerun", selection_mode="multi-row", key="rk_table")
+        if event_rk and event_rk.selection and event_rk.selection.rows:
+            sel_rk_names = [disp_rk.iloc[i]["Spieler"] for i in event_rk.selection.rows if i < len(disp_rk)]
+            if st.button(f"⭐ {len(sel_rk_names)} Spieler zur Watchlist", key="rk_wl_btn"):
+                n = add_players_to_watchlist(rk_df, sel_rk_names, quelle="IFI Ranking")
+                st.success(f"✅ {n} Spieler hinzugefügt")
     else:
         st.info("Keine Spieler gefunden.")
+    render_watchlist_section("rk")
 
 # ── TAB: PHYSICAL SCREENER (reine Athletik-Suche, unabhaengig von IFI) ───────
 with tab9:
@@ -2117,6 +2168,13 @@ with tab9:
         if "sc_peak velocity" in ph_filtered.columns:
             disp_ph["Peak Velocity"] = pd.to_numeric(ph_filtered["sc_peak velocity"], errors="coerce").round(2)
         disp_ph["IFI% (nur Info)"] = pd.to_numeric(ph_filtered.get("pct_score", pd.Series(dtype=float)), errors="coerce").round(0)
-        st.dataframe(disp_ph, use_container_width=True, height=520)
+        event_ph = st.dataframe(disp_ph, use_container_width=True, height=520,
+                                 on_select="rerun", selection_mode="multi-row", key="ph_table")
+        if event_ph and event_ph.selection and event_ph.selection.rows:
+            sel_ph_names = [disp_ph.iloc[i]["Spieler"] for i in event_ph.selection.rows if i < len(disp_ph)]
+            if st.button(f"⭐ {len(sel_ph_names)} Spieler zur Watchlist", key="ph_wl_btn"):
+                n = add_players_to_watchlist(ph_filtered, sel_ph_names, quelle="Physical Screener")
+                st.success(f"✅ {n} Spieler hinzugefügt")
     else:
         st.info("Keine Spieler gefunden.")
+    render_watchlist_section("ph")

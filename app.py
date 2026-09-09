@@ -1025,7 +1025,13 @@ def render_watchlist_section(key_suffix=""):
                     pos_w = w.get("position","Winger")
                     try:
                         row_w = pd.Series(w)
-                        html_w = make_html_report(row_w, pos_w)
+                        # Bugfix (Session-Fund): row_w enthaelt bereits alle
+                        # OBV_-Spalten (jeder Watchlist-Eintrag ist eine
+                        # komplette Zeilenkopie) - obv_row wurde bisher aber
+                        # nie mitgegeben, daher blieb die OBV-Sektion im
+                        # Report immer leer, auch wenn Daten vorhanden waren.
+                        has_obv_w = pd.notna(row_w.get("OBV_Total Impact"))
+                        html_w = make_html_report(row_w, pos_w, obv_row=row_w if has_obv_w else None)
                         reports.append(html_w)
                     except Exception as e:
                         reports.append(f"<p>Fehler für {w.get('name','?')}: {e}</p>")
@@ -1349,14 +1355,25 @@ with tab1:
 
                 dl1, dl2, dl3 = st.columns(3)
                 with dl1:
-                    obv_r = df[df["name"]==sel_name].iloc[0] if not df[df["name"]==sel_name].empty else None
-                    html_rep = make_html_report(row, pos_row, obv_row=obv_r if (obv_r is not None and pd.notna(obv_r.get("OBV_Total Impact"))) else None)
+                    # Bugfix (Session-Fund): row ist bereits die korrekt
+                    # aufgeloeste, exakt ausgewaehlte Zeile (siehe Fix weiter
+                    # oben) und enthaelt alle OBV_-Spalten selbst - die
+                    # erneute Namens-Suche hier war derselbe Mehrdeutigkeits-
+                    # Bug wie beim OBV-Profil-Tab (holte ggf. OBV-Daten aus
+                    # der falschen Saison-Zeile, oder gar keine, obwohl
+                    # vorhanden).
+                    has_obv_row = pd.notna(row.get("OBV_Total Impact"))
+                    html_rep = make_html_report(row, pos_row, obv_row=row if has_obv_row else None)
                     st.download_button("📄 Profil HTML", html_rep.encode("utf-8"),
                         f"Profil_{str(row.get('name','player')).replace(' ','_')}.html",
                         "text/html", use_container_width=True)
                 with dl2:
+                    # Bugfix (Session-Fund): exportierte bisher ALLE Zeilen mit
+                    # gleichem Namen (z.B. beide Saison-Zeilen) statt nur die
+                    # ausgewaehlte - jetzt nur noch die eine, korrekt
+                    # aufgeloeste Zeile.
                     st.download_button("📊 Spieler CSV",
-                        df[df["name"]==sel_name].to_csv(index=False).encode("utf-8"),
+                        pd.DataFrame([row]).to_csv(index=False).encode("utf-8"),
                         f"Daten_{str(row.get('name','player')).replace(' ','_')}.csv",
                         "text/csv", use_container_width=True)
                 with dl3:
@@ -1366,7 +1383,7 @@ with tab1:
 
                 # OBV Link
                 has_obv_data = any(c in df.columns for c in ["OBV_Total Impact"])
-                if has_obv_data and df[df["name"]==sel_name]["OBV_Total Impact"].notna().any():
+                if has_obv_data and has_obv_row:
                     st.markdown(f"""<div style='margin-top:12px;padding:10px 16px;background:#1A1A2E;border-radius:8px;border-left:3px solid {ORG}'>
                         <span style='color:#AAA;font-size:12px'>⚽ OBV-Daten verfügbar — </span>
                         <span style='color:{ORG};font-size:12px;font-weight:600'>Tab "🔮 OBV Profil" öffnen → Spieler wird automatisch geladen</span>

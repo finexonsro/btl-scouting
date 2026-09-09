@@ -1114,6 +1114,19 @@ with tab1:
                 # Finde den entsprechenden Eintrag in df mit allen Spalten
                 disp_row = df_display.iloc[sel_row_idx]
                 mask_full = (df["name"] == disp_row.get("name","")) & (df["position"] == disp_row.get("position",""))
+                # Bugfix (Session-Fund): Name+Position ist nicht eindeutig, wenn
+                # derselbe Spieler mehrere Saison-Zeilen hat (z.B. Seegert 2025/26
+                # + 2026/27, beide Central Defender) - "row_m.iloc[0]" hat dann
+                # immer die erste/aelteste Zeile erwischt, unabhaengig davon,
+                # welche Zeile in der Tabelle tatsaechlich angeklickt wurde.
+                # Progressiv nach Team/Liga/Saison einschraenken, aber nur wenn
+                # das noch mindestens einen Treffer laesst (rueckwaertskompatibel
+                # zu CSVs ohne "saison"-Spalte).
+                for extra_col in ["team", "liga", "saison"]:
+                    if extra_col in df.columns and extra_col in disp_row.index and pd.notna(disp_row.get(extra_col)):
+                        narrowed = mask_full & (df[extra_col] == disp_row.get(extra_col))
+                        if narrowed.any():
+                            mask_full = narrowed
                 row_m = df[mask_full]
             else:
                 row_m = df[(df["name"] == sel_name) & (df["position"] == sel_pos_row)]

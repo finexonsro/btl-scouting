@@ -470,7 +470,11 @@ def recalc(df, weights, position):
         tw = sum(active.get(c.replace("pct_",""), 0) for c in pct_cols)
         if tw > 0:
             raw = sum(df[c].fillna(0) * (active.get(c.replace("pct_",""), 1) / tw) for c in pct_cols)
-            df["pct_score"] = raw.rank(pct=True) * 100
+            # v8: IFI-Perzentil innerhalb der Liga (ligaübergreifend nicht vergleichbar)
+            if "liga" in df.columns:
+                df["pct_score"] = raw.groupby(df["liga"]).rank(pct=True) * 100
+            else:
+                df["pct_score"] = raw.rank(pct=True) * 100
 
     # Handle pct_score column
     if "pct_score" not in df.columns and "Pct_Score" in df.columns:
